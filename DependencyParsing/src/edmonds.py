@@ -248,25 +248,22 @@ def my_test_function():
         matrix = np.random.random((len(sentence), len(sentence)))
         graph, edges = matrix_to_graph(matrix, sentence, digraph=True)
 
-        max_score = -np.inf
-        root_for_max_score = 0
-        for root in np.arange(0, len(sentence)):
-            tree = edmonds(graph, root=root)
-            maxim = get_score(tree)
-            if maxim > max_score:
-                max_score = maxim
-                root_for_max_score = root
+        tree1 = edmonds(graph)
+        tree2 = minimum_tree(graph)
 
-        tree = edmonds(graph, root=root_for_max_score)
-        tree11 = minimum_tree(graph)
-
-        if not is_same_tree(tree, tree11):
+        if not is_same_tree(tree1, tree2):
             wrong_tests += 1
 
     print(str(wrong_tests / all_tests * 100) + "% are wrong")
 
 
-def edmonds(G, root=0, step=0):
+def maximum_tree(G, root=0, step=0):
+    """
+    :param G: graph of type networkx Graph
+    :param root: the root node
+    :param step: this function being recursive, the step tells us how deep we are with the recursion.
+    :return: a maximum spanning tree of the graph G, of type network Graph.
+    """
     G = prepare(G, root)
     P = greedy(G, root)
     if nx.is_arborescence(P):
@@ -275,15 +272,42 @@ def edmonds(G, root=0, step=0):
         C = nx.find_cycle(P, orientation='ignore')
         G, dictionary_cleanup = cleanup(G, root)
         G_contracted, dictionary = contract(G, C, root=root, step=step)
-        T_contracted = edmonds(G_contracted, root=root, step=step + 1)
+        T_contracted = maximum_tree(G_contracted, root=root, step=step + 1)
         T_expanded = expand(T_contracted, C, dictionary, root=root, step=step)
         T_expanded = uncleanup(T_expanded, dictionary_cleanup, root=root)
         return T_expanded
 
 
-def edmonds_list(cost_matrix, sentence=[], root=0, step=0):
+def edmonds(G, root=None):
+    """
+    :param G: a graph of type networkx DiGraph
+    :param root: the root note, of type integer.
+    :return: the maximum tree from G, of type networkx Graph
+    """
+    if root is not None:
+        return maximum_tree(G, root=root)
+    else:
+        max_score = -np.inf
+        max_root = 0
+        for root in np.arange(0, len(G.nodes)):
+            tree = maximum_tree(G, root=root)
+            maxim = get_score(tree)
+            if maxim > max_score:
+                max_score = maxim
+                max_root = root
+
+        return maximum_tree(G, root=max_root)
+
+
+def edmonds_list(cost_matrix, sentence=[], root=None):
+    """
+    :param cost_matrix: the cost matrix, of type np.array.
+    :param sentence: the sentence whose dependency graph we want to compute, of type list of strings
+    :param root: the root note, of type integer.
+    :return: the edges of the maximum tree, of type list of edges(list of tuples)
+    """
     G, _ = matrix_to_graph(cost_matrix, sentence, digraph=True)
-    Tree = edmonds(G, root, step)
+    Tree = edmonds(G, root)
     edges = []
     for edge in Tree.edges:
         edges.append(edge)
@@ -291,7 +315,7 @@ def edmonds_list(cost_matrix, sentence=[], root=0, step=0):
 
 
 if __name__ == '__main__':
-    # test()
+    my_test_function()
 
     labels = ["nsubj", "dobj", "iobj", "det", "nmod", "amod", "cc", "conj"]
     sentence = "Eins Zwei Drei Vier Funf Sechs Sieben Acht Neun".split()
@@ -299,16 +323,7 @@ if __name__ == '__main__':
     matrix = np.random.random((len(sentence), len(sentence)))
     graph, edges = matrix_to_graph(matrix, sentence, digraph=True)
 
-    max_score = -np.inf
-    max_root = 0
-    for root in np.arange(0, len(sentence)):
-        tree = edmonds(graph, root=root)
-        maxim = get_score(tree)
-        if maxim > max_score:
-            max_score = maxim
-            max_root = root
-
-    tree = edmonds(graph, root=max_root)
+    tree = edmonds(graph)
     print("Score:", get_score(tree))
     draw_nice(tree, custom_labels=False)
 
