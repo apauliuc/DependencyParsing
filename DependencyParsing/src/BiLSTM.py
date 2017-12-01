@@ -46,8 +46,6 @@ class BiLSTMTagger(nn.Module):
 
         self.softmax = nn.Softmax()
 
-        # more layers for MLP and OUTPUT
-
     def init_hidden(self):
         # Before we've done anything, we don't have any hidden state.
         # Refer to the PyTorch documentation to see exactly
@@ -81,14 +79,12 @@ class BiLSTMTagger(nn.Module):
 
             matrix_row = torch.cat(matrix_row, 1)
 
-            print(matrix_row)
-            matrix_row = self.softmax(matrix_row)
-            print(matrix_row)
-
             # append to matrix  the
             matrix.append(matrix_row)
 
         matrix = torch.cat(matrix, 0)
+
+        matrix = self.softmax(matrix.permute(1, 0)).permute(1, 0)
 
         return matrix
 
@@ -116,20 +112,17 @@ if __name__ == '__main__':
     parameters = filter(lambda p: p.requires_grad, model.parameters())
     optimizer = torch.optim.SGD(parameters, lr=0.1)
 
+    conllu_sentences = em.en_train_sentences()
+
     sentences = em.gensim_word_sentences_train
     pos_tags = em.gensim_POS_sentences_train
 
     for epoch in range(1):
         counter = 0
         # for i in np.arange(0, len(sentences)):
-        for i in np.arange(0, 1):
-            print(counter)
-            counter += 1
-
-            sentence = sentences[i]
-            tags = pos_tags[i]
-
-            print(sentence)
+        for conllu_sentence in conllu_sentences[0:1]:
+            sentence = conllu_sentence.get_word_list()[0:3]
+            tags = conllu_sentence.get_pos_list()[0:3]
 
             # Step 1. Remember that PyTorch accumulates gradients.
             # We need to clear them out before each instance
@@ -147,14 +140,15 @@ if __name__ == '__main__':
             # Step 3. Run our forward pass.
             tag_scores = model(sentence_in, post_tags_in)
 
-            print(tag_scores)
+            targets = autograd.Variable(torch.from_numpy(np.array(conllu_sentence.get_matrix_representation()).astype(np.float)).float())
+            print(conllu_sentence.get_matrix_representation())
 
-
-            #
-            # # Step 4. Compute the loss, gradients, and update the parameters by
-            # #  calling optimizer.step()
+            # Step 4. Compute the loss, gradients, and update the parameters by
+            #  calling optimizer.step()
             # loss = loss_function(tag_scores, targets)
             #
+            # print(loss)
+
             # loss.backward()
             # optimizer.step()
 

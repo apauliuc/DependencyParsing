@@ -1,5 +1,7 @@
 from word import Word
 
+import numpy as np
+
 
 class Sentence:
     """Sentence class that maps all details for a sentence from a *.conllu file. """
@@ -55,6 +57,25 @@ class Sentence:
 
         return Sentence(new_doc_id, send_id, text, words)
 
+    def get_matrix_representation(self):
+        matrix = np.zeros((len(self.words), len(self.words)), dtype=np.int)
+        for word in self.words:
+            if int(word.HEAD) != 0:  # we don't include the "ROOT" node.
+                matrix[int(word.HEAD) - 1][int(word.ID) - 1] = 1
+        return matrix
+
+    def get_word_list(self):
+        sentence = []
+        for word in self.words:
+            sentence.append(word.FORM.lower())
+        return sentence
+
+    def get_pos_list(self):
+        sentence = []
+        for word in self.words:
+            sentence.append(word.UPOSTAG.lower())
+        return sentence
+
 
 if __name__ == '__main__':
     lines = ["# sent_id = weblog-blogspot.com_gettingpolitical_20030906235000_ENG_20030906_235000-0003",
@@ -79,3 +100,4 @@ if __name__ == '__main__':
     print(str(sentence), "\n")
     print(sentence.text, "\n")
     print(sentence.words[0], "\n")
+    print(sentence.get_matrix_representation())
