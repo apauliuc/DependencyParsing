@@ -1,13 +1,18 @@
 import torch
 import torch.autograd as autograd
 import torch.nn as nn
-import torch.nn.functional as F
-import torch.optim as optim
 import numpy as np
 
 import embedding as em
 
 torch.manual_seed(1)
+
+if torch.cuda.is_available():
+    floatTensor = torch.cuda.FloatTensor
+    longTensor = torch.cuda.LongTensor
+else:
+    floatTensor = torch.FloatTensor
+    longTensor = torch.LongTensor
 
 
 class BiLSTMTagger(nn.Module):
@@ -19,11 +24,11 @@ class BiLSTMTagger(nn.Module):
 
         self.word_embeddings = nn.Embedding(word_embeddings.data.shape[0], word_embeddings.data.shape[1])
         self.word_embeddings.weight = nn.Parameter(word_embeddings.data)
-        self.word_embeddings.requires_grad = False
+        self.word_embeddings.requires_grad = True
 
         self.pos_embeddings = nn.Embedding(pos_embeddings.data.shape[0], pos_embeddings.data.shape[1])
         self.pos_embeddings.weight = nn.Parameter(pos_embeddings.data)
-        self.pos_embeddings.requires_grad = False
+        self.pos_embeddings.requires_grad = True
 
         self.bilstm = nn.LSTM(
             input_size=input_size,
@@ -33,43 +38,53 @@ class BiLSTMTagger(nn.Module):
             bidirectional=True
         )
 
+        self.num_directions = 2 if self.bilstm.bidirectional else 1
+
         self.hidden = self.init_hidden()
 
         # One linear layer Wx + b, input dim 100 output dim 100
-        self.mlp_head = nn.Linear(input_size, input_size)
+        self.mlp_head1 = nn.Linear(input_size, input_size)
+        self.mlp_head2 = nn.Linear(input_size, input_size)
 
         # One linear layer Wx + b, input dim 100 output dim 100
-        self.mlp_dependent = nn.Linear(input_size, input_size)
+        self.mlp_dependent1 = nn.Linear(input_size, input_size)
+        self.mlp_dependent2 = nn.Linear(input_size, input_size)
+
+        # activation function  h(Wx + b)
+        self.ReLU = nn.ReLU()
 
         # One bi-linear layer x1∗W1∗x2+b, input1 dim 100,input2 dim 100, output dim 1
         self.bi_linear = nn.Bilinear(input_size, input_size, 1)
 
-        self.softmax = nn.Softmax()
+        if torch.cuda.is_available():
+            self.cuda()
+        else:
+            self.cpu()
 
     def init_hidden(self):
         # Before we've done anything, we don't have any hidden state.
-        # Refer to the PyTorch documentation to see exactly
-        # why they have this dimensionality.
+        # Refer to the PyTorch documentation to see exactly why they have this dimensionality.
         # The axes semantics are (num_layers*num_directions, mini-batch_size, hidden_dim)
-        return (autograd.Variable(torch.zeros(self.num_layers * 2, 1, self.hidden_dim // 2)),
-                autograd.Variable(torch.zeros(self.num_layers * 2, 1, self.hidden_dim // 2)))
+        return (autograd.Variable(torch.zeros(self.num_layers * self.num_directions, 1, self.hidden_dim // 2)).type(floatTensor),
+                autograd.Variable(torch.zeros(self.num_layers * self.num_directions, 1, self.hidden_dim // 2)).type(floatTensor))
 
-    def forward(self, x, x_pos):
+    def forward(self, sentence_word_indices, sentence_pos_indices):
         # get embeddings for sentence
-        embedded_sentence = torch.cat((self.word_embeddings(x), self.pos_embeddings(x_pos)), 1)
+        embedded_sentence = torch.cat((self.word_embeddings(sentence_word_indices), self.pos_embeddings(sentence_pos_indices)), 1)
         inputs = embedded_sentence.view(len(embedded_sentence), 1, -1)
 
         # pass through the biLstm layer
         lstm_out, self.hidden = self.bilstm(inputs, self.hidden)
 
+        # TODO: we could use a technique called 'tiling', to have matrix multiplications instead of 'for in for'
         # do further processing in MLP
         # for each pair v_i, v_j, go with v_1 through mlp_head and with v_j to mlp_dependent
         matrix = []
         for v_i in lstm_out:
             matrix_row = []
             for v_j in lstm_out:
-                v_i_head = self.mlp_head(v_i)
-                v_j_dependent = self.mlp_dependent(v_j)
+                v_i_head = self.ReLU(self.mlp_head2(self.ReLU(self.mlp_head1(v_i))))
+                v_j_dependent = self.ReLU(self.mlp_dependent2(self.ReLU(self.mlp_dependent1(v_j))))
 
                 # for each pair, of v_i_head and v_j_dependent go through bi_linear, so that we have a score
                 score = self.bi_linear(v_i_head, v_j_dependent)
@@ -79,12 +94,10 @@ class BiLSTMTagger(nn.Module):
 
             matrix_row = torch.cat(matrix_row, 1)
 
-            # append to matrix  the
+            # append to matrix  the rows
             matrix.append(matrix_row)
 
-        matrix = torch.cat(matrix, 0)
-
-        matrix = self.softmax(matrix.permute(1, 0)).permute(1, 0)
+        matrix = torch.cat(matrix, 0)  # TODO: we return the matrix as it is, because torch.CrossEntropyLoss will apply softmax on it.
 
         return matrix
 
@@ -93,10 +106,10 @@ def prepare_sequence(sequence, element2index):
     """
     :param sequence: sequence of elements
     :param element2index: dictionary to map elements to index
-    :return: autograd.Variable(torch.LongTensor(X)), where "x" is the sequence of indexes.
+    :return: autograd.Variable(torch.LongTensor(X)), where "X" is the sequence of indexes.
     """
     indexes = [element2index[element] for element in sequence]
-    tensor = torch.LongTensor(indexes)
+    tensor = longTensor(indexes)
     return autograd.Variable(tensor)
 
 
@@ -107,22 +120,22 @@ if __name__ == '__main__':
     model = BiLSTMTagger(input_size=100, hidden_dim=100, num_layers=2, word_embeddings=word_embeddings,
                          pos_embeddings=pos_embeddings)
 
-    loss_function = nn.NLLLoss()
+    loss_function = nn.CrossEntropyLoss()
 
     parameters = filter(lambda p: p.requires_grad, model.parameters())
     optimizer = torch.optim.SGD(parameters, lr=0.1)
 
     conllu_sentences = em.en_train_sentences()
 
-    sentences = em.gensim_word_sentences_train
-    pos_tags = em.gensim_POS_sentences_train
-
+    count = 0
     for epoch in range(1):
         counter = 0
-        # for i in np.arange(0, len(sentences)):
-        for conllu_sentence in conllu_sentences[0:1]:
-            sentence = conllu_sentence.get_word_list()[0:3]
-            tags = conllu_sentence.get_pos_list()[0:3]
+        for conllu_sentence in conllu_sentences:
+            print(count)
+            count += 1
+
+            sentence = conllu_sentence.get_word_list()
+            tags = conllu_sentence.get_pos_list()
 
             # Step 1. Remember that PyTorch accumulates gradients.
             # We need to clear them out before each instance
@@ -138,27 +151,10 @@ if __name__ == '__main__':
             post_tags_in = prepare_sequence(tags, em.t2i)
 
             # Step 3. Run our forward pass.
-            tag_scores = model(sentence_in, post_tags_in)
+            arc_scores = model(sentence_in, post_tags_in)
 
-            targets = autograd.Variable(torch.from_numpy(np.array(conllu_sentence.get_matrix_representation()).astype(np.float)).float())
-            print(conllu_sentence.get_matrix_representation())
-
-            # Step 4. Compute the loss, gradients, and update the parameters by
-            #  calling optimizer.step()
-            # loss = loss_function(tag_scores, targets)
-            #
-            # print(loss)
-
-            # loss.backward()
-            # optimizer.step()
-
-            # # See what the scores are after training
-            # inputs = prepare_sequence(sentences[0][0], word_to_ix)
-            # tag_scores = model(inputs)
-            # # The sentence is "the dog ate the apple".  i,j corresponds to score for tag j
-            # #  for word i. The predicted tag is the maximum scoring tag.
-            # # Here, we can see the predicted sequence below is 0 1 2 0 1
-            # # since 0 is index of the maximum value of row 1,
-            # # 1 is the index of maximum value of row 2, etc.
-            # # Which is DET NOUN VERB DET NOUN, the correct sequence!
-            # print(tag_scores)
+            # Step 4. Compute the loss, gradients, and update the parameters by calling optimizer.step()
+            targets = autograd.Variable(torch.from_numpy(np.array(conllu_sentence.get_head_representation()).astype(np.float))).type(float)
+            loss = loss_function(arc_scores.permute(1, 0), targets)  # TODO: check to see how exactly to send the data to loss function(i.e. 'permute' or 'no permute'??)
+            loss.backward()
+            optimizer.step()

@@ -64,6 +64,13 @@ class Sentence:
                 matrix[int(word.HEAD) - 1][int(word.ID) - 1] = 1
         return matrix
 
+    def get_head_representation(self):
+        matrix = np.zeros(len(self.words), dtype=np.int)
+        for index, word in enumerate(self.words):
+            if int(word.HEAD) != 0:  # we don't include the "ROOT" node.
+                matrix[index] = int(word.HEAD) - 1
+        return matrix
+
     def get_word_list(self):
         sentence = []
         for word in self.words:

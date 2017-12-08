@@ -8,7 +8,11 @@ from collections import defaultdict
 
 def matrix_to_graph(A, sent, digraph=False):
     """
-    Turns a numpy matrix to a networkx graph
+    This function turns a numpy matrix into a networkx graph.
+    :param A: numpy square matrix
+    :param sent: a sentence given as a list of words; words will be used as labels of the nodes.
+    :param digraph: if the graph directed or not.
+    :return: networkx Graph
     """
     k = A.shape[0]
     nodes = range(k)
@@ -26,12 +30,22 @@ def matrix_to_graph(A, sent, digraph=False):
 
 
 def minimum_tree(G):
+    """
+    This function returns a maximum spanning tree, using the networkx' "Edmonds' Algorithm" implementation
+    :param G: networkx Graph
+    :return: maximum spanning tree of the given graph
+    """
     edmonds = Edmonds(G)
     tree = edmonds.find_optimum()
     return tree
 
 
 def draw_nice(G, custom_labels=False):
+    """
+    This function draws a networkx Graph.
+    :param G: networkx Graph
+    :param custom_labels: boolean; if true, nodes' 'word' property will be use to display nodes' label, else integers wil be used.
+    """
     colors = [G[i][j]['weight'] for (i, j) in G.edges()]
 
     node_labels = {}
@@ -167,6 +181,15 @@ def uncleanup(G, dictionary_cleanup, root=0):
 
 
 def contract(G, C, root=0, step=0):
+    """
+    This function contracts a cycle into a single node and returns the newly created crap as well as a dictionary
+    later used by 'expand()' method to reconstruct the graph.
+    :param G: a networkx Graph
+    :param C: list of edges that make a cycle in graph G
+    :param root: the root of the graph G
+    :param step: the depth of the recursive call used to name the node that replaces the cycle; need not care about this
+    :return: the contracted graph, a dictionary of edges used to expand the graph back
+    """
     new_node = "new_" + str(step)
     nodes = get_nodes(C)
     G_contracted = nx.DiGraph()
@@ -202,6 +225,15 @@ def contract(G, C, root=0, step=0):
 
 
 def expand(T_contracted, C, restore_dictionary, root=0, step=0):
+    """
+    The opposite of contract graph.
+    :param T_contracted: a networkx Graph that is a tree
+    :param C: the cycle to expand.
+    :param restore_dictionary: the dictionary used to expand the node; See: 'contract():'
+    :param root: the root of T_contracted graph
+    :param step:  depth of the recursive call used to name the node that replaces the cycle; need not care about this
+    :return: The expanded tree
+    """
     new_node = "new_" + str(step)
     nodes = get_nodes(C)
     G_expanded = nx.DiGraph()
@@ -280,8 +312,10 @@ def maximum_tree(G, root=0, step=0):
 
 def edmonds(G, root=None):
     """
+    Given a networkx Graph, this function returns the maximum spanning tree, using the Edmonds' Algorithm.
     :param G: a graph of type networkx DiGraph
-    :param root: the root note, of type integer.
+    :param root: the root note, of type integer; if 'None', all nodes will be considered root nodes one at a time
+                in order to find the maximum
     :return: the maximum tree from G, of type networkx Graph
     """
     if root is not None:
@@ -301,6 +335,8 @@ def edmonds(G, root=None):
 
 def edmonds_list(cost_matrix, sentence=[], root=None):
     """
+    Given a cost matrix, this function returns a list of tuples representing the edges of the maximum spanning tree.
+    Edmonds' Algorithm is used to find the maximum spanning tree.
     :param cost_matrix: the cost matrix, of type np.array.
     :param sentence: the sentence whose dependency graph we want to compute, of type list of strings
     :param root: the root note, of type integer.

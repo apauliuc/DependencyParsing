@@ -1,3 +1,4 @@
+import random
 from collections import defaultdict, Counter
 from gensim.models import Word2Vec
 from sklearn.cluster import KMeans
@@ -10,6 +11,10 @@ from bokeh.io import output_notebook
 import numpy as np
 
 from sentence import Sentence
+
+ROOT_TAG = "<ROOT_TAG>"
+ROOT_WORD = "<ROOT_WORD>"
+UNKNOWN_WORD = "<UNK>"
 
 output_notebook()
 
@@ -127,8 +132,8 @@ def get_gensim_sentences(sentences):
     POS_counts = Counter()
     label_counts = Counter()
     for sentence in sentences:
-        gensim_word_sentence = []
-        gensim_POS_sentence = []
+        gensim_word_sentence = [ROOT_WORD]
+        gensim_POS_sentence = [ROOT_TAG]
         for word in sentence.words:
             gensim_word_sentence.append(word.FORM.lower())
             word_counts[word.FORM.lower()] += 1
@@ -169,10 +174,13 @@ def get_gensim_sentences(sentences):
 #         for item in unknown_representation:
 #             file.write(str(item) + " ")
 
+def get_random_representation(length=50):
+    return [random.random() for _ in range(0, length)]
+
 
 def get_glove_pre_trained_tag_model():
     """
-    PLOT TWIST: we get the pos tag word_embeddings from training
+    PLOT TWIST: We get the pos tag word_embeddings from training
     """
     model = {}
     word2vect = Word2Vec(gensim_POS_sentences_train, size=50, window=3, min_count=2, workers=4)
@@ -190,6 +198,7 @@ def get_glove_pre_trained_word_model():
             pre_trained_tokens[tokens[0]] = tokens[1:]
         else:
             unknown_representation = tokens[1:]
+    pre_trained_tokens[ROOT_WORD] = get_random_representation()
     return defaultdict(lambda: unknown_representation, pre_trained_tokens)
 
 

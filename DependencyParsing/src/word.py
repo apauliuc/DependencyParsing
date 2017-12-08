@@ -18,9 +18,9 @@ class Word:
 
         string += self.ID if self.ID is not None else '_'
         string += " "
-        string += self.FORM     # if self.FORM is not None else '_'     words can not be None. Here, '_' simply means an underscore.
+        string += self.FORM     # if self.FORM is not None else '_'   -> Words can not be None. Here, '_' simply means an underscore.
         string += " "
-        string += self.LEMMA    # if self.LEMMA is not None else '_'    words can not be None. Here, '_' simply means an underscore.
+        string += self.LEMMA    # if self.LEMMA is not None else '_'  -> Words can not be None. Here, '_' simply means an underscore.
         string += " "
         string += self.UPOSTAG if self.UPOSTAG is not None else '_'
         string += " "
