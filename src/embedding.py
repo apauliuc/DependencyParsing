@@ -1,6 +1,5 @@
 import random
 from collections import defaultdict, Counter
-from gensim.models import Word2Vec
 from sklearn.cluster import KMeans
 from sklearn.manifold import TSNE
 from bokeh.models import ColumnDataSource, LabelSet
@@ -8,13 +7,14 @@ from bokeh.plotting import figure, show, output_file
 from bokeh.palettes import d3
 from bokeh.io import output_notebook
 
-import numpy as np
-
 from sentence import Sentence
 
 ROOT_TAG = "<ROOT_TAG>"
 ROOT_WORD = "<ROOT_WORD>"
-UNKNOWN_WORD = "<UNK>"
+ROOT_LABEL = "<ROOT_LABEL>"
+UNKNOWN_WORD = "<UNK_WORD>"
+UNKNOWN_TAG = "<UNK_TAG>"
+UNKNOWN_LABEL = "<UNK_LABEL>"
 
 output_notebook()
 
@@ -160,7 +160,7 @@ def get_gensim_sentences(sentences):
 
 # def write_all_our_words():
 #     unknown_representation = []
-#     with open("../resources/glove50d.txt", 'w') as file:
+#     with open("../resources/glove50d_word.txt", 'w') as file:
 #         for w in word_vocabulary:
 #             if w in all_pre_trained_words:
 #                 file.write(w + " ")
@@ -185,32 +185,35 @@ def get_glove_pre_trained_tag_model():
     """
     PLOT TWIST: We get the pos_tag embeddings from training a gensim model.
     """
-    model = {}
-    word2vect = Word2Vec(gensim_POS_sentences_train, size=50, window=3, min_count=2, workers=4)
-    for key in word2vect.wv.vocab.keys():
-        model[key] = word2vect.wv[key]
-    return model
+    file = open("../resources/gensim50d_pos.txt")
+
+    pre_trained_pos_tags = {}
+    for line in file:
+        tokens = line.split()
+        if tokens[0] == UNKNOWN_TAG:
+            unknown_representation = tokens[1:]
+        else:
+            pre_trained_pos_tags[tokens[0]] = tokens[1:]
+
+    return defaultdict(lambda: unknown_representation, pre_trained_pos_tags)
 
 
 def get_glove_pre_trained_word_model():
-    file = open("../resources/glove50d.txt")
+    file = open("../resources/glove50d_word.txt")
     pre_trained_tokens = {}
     for line in file:
         tokens = line.split()
-        if tokens[0] != "<UNK>":
-            pre_trained_tokens[tokens[0]] = tokens[1:]
-        else:
+        if tokens[0] == UNKNOWN_WORD:
             unknown_representation = tokens[1:]
-    pre_trained_tokens[ROOT_WORD] = get_random_representation()
+        else:
+            pre_trained_tokens[tokens[0]] = tokens[1:]
+
     return defaultdict(lambda: unknown_representation, pre_trained_tokens)
 
 
-gensim_word_sentences_train, word_counts_train, gensim_POS_sentences_train, POS_counts_train, label_counts_train = get_gensim_sentences(
-    en_train_sentences())
-gensim_word_sentences_dev, word_counts_dev, gensim_POS_sentences_dev, POS_counts_dev, label_counts_dev = get_gensim_sentences(
-    en_dev_sentences())
-gensim_word_sentences_test, word_counts_test, gensim_POS_sentences_test, POS_counts_test, label_counts_test = get_gensim_sentences(
-    en_test_sentences())
+gensim_word_sentences_train, word_counts_train, gensim_POS_sentences_train, POS_counts_train, label_counts_train = get_gensim_sentences(en_train_sentences())
+gensim_word_sentences_dev, word_counts_dev, gensim_POS_sentences_dev, POS_counts_dev, label_counts_dev = get_gensim_sentences(en_dev_sentences())
+gensim_word_sentences_test, word_counts_test, gensim_POS_sentences_test, POS_counts_test, label_counts_test = get_gensim_sentences(en_test_sentences())
 
 # all_pre_trained_word_embeddings = get_all_pre_trained_word_embeddings()
 # all_pre_trained_words = all_pre_trained_word_embeddings.keys()
@@ -220,29 +223,33 @@ pre_trained_POS_model = get_glove_pre_trained_tag_model()
 
 w2i = defaultdict(lambda: len(w2i))
 i2w = dict()
-i2w[w2i["<UNK>"]] = "<UNK>"  # word with index 0 are the words that are unknown.
+i2w[w2i[UNKNOWN_WORD]] = UNKNOWN_WORD  # word with index 0 are the words that are unknown.
 word_vocabulary = pre_trained_word_model.keys()
 for word in word_vocabulary:
-    i2w[w2i[word]] = word
-w2i = defaultdict(lambda: 0, w2i)
+    i2w[w2i[word]] = word  # trick
+w2i = defaultdict(lambda: 0, w2i)  # change the default behaviour so that it returns the index of unknown words(i.e. 0 )
 
 t2i = defaultdict(lambda: len(t2i))
 i2t = dict()
+i2t[t2i[UNKNOWN_TAG]] = UNKNOWN_TAG  # tags with index 0 are the tags that are unknown.
 pos_tag_vocabulary = pre_trained_POS_model.keys()
 for tag in pos_tag_vocabulary:
     i2t[t2i[tag]] = tag  # trick
+t2i = defaultdict(lambda: 0, t2i)  # change the default behaviour so that it returns the index of unknown tags(i.e. 0 )
 
 l2i = defaultdict(lambda: len(l2i))
 i2l = dict()
 label_vocabulary = label_counts_train.keys()
 for label in label_vocabulary:
     i2l[l2i[label]] = label  # trick
+l2i = dict(l2i)  # remove the default behaviour
 
 
 def word_embeddings():
     glove_pre_trained_word_model = get_glove_pre_trained_word_model()
     embeddings = []
-    for index in i2w.keys():
+    indices = len(i2w.keys())
+    for index in range(0, indices):
         embeddings.append(glove_pre_trained_word_model[i2w[index]])
     return embeddings
 
@@ -250,27 +257,52 @@ def word_embeddings():
 def tag_embeddings():
     glove_pre_trained_pos_model = get_glove_pre_trained_tag_model()
     embeddings = []
-    for index in i2t.keys():
+    indices = len(i2t.keys())
+    for index in range(0, indices):
         embeddings.append(glove_pre_trained_pos_model[i2t[index]])
     return embeddings
 
 
 if __name__ == '__main__':
-    output_notebook()
 
+    '''
+    
+    # models that have a default behaviour and return a representation for unknown words.
     pre_trained_word_model = get_glove_pre_trained_word_model()
     pre_trained_POS_model = get_glove_pre_trained_tag_model()
 
-    word_vector = []
-    word_list = []
-    for word, count in word_counts_train.most_common(1000):
-        word_list.append(word)
-        word_vector.append(pre_trained_word_model[word])
-    emb_scatter(word_vector, word_list, N=20)
 
-    top_POS = [k for k, v in POS_counts_train.most_common(1000)]
+    # dictionaries for conversion from "elements to index" and from "indices to elements".
+    w2i  # word to index
+    t2i  # tag to index
+    l2i  # label to index
 
-    top_POS_vecs = []
-    for pos in top_POS:
-        top_POS_vecs.append(pre_trained_POS_model[pos])
-    emb_scatter(top_POS_vecs, top_POS, N=17)
+    i2w  # index to index
+    i2t  # index to tag
+    i2l  # index to label
+
+
+    # counter for words, tags and labels for training, development and test set.
+    word_counts_train
+    word_counts_dev
+    word_counts_test
+
+    POS_counts_train
+    POS_counts_dev
+    POS_counts_test
+
+    label_counts_train
+    label_counts_dev
+    label_counts_test
+
+
+    # lists of sentences; each sentence is a list of words(or tags); so you have a list of lists.
+    gensim_word_sentences_train
+    gensim_word_sentences_dev
+    gensim_word_sentences_test
+
+    gensim_POS_sentences_train
+    gensim_POS_sentences_dev
+    gensim_POS_sentences_test
+    
+    '''
