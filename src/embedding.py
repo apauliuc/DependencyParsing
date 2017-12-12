@@ -180,7 +180,7 @@ def get_random_representation(length=50):
 
 def get_glove_pre_trained_tag_model():
     """
-    PLOT TWIST: We get the pos tag word_embeddings from training
+    PLOT TWIST: We get the pos_tag embeddings from training a gensim model.
     """
     model = {}
     word2vect = Word2Vec(gensim_POS_sentences_train, size=50, window=3, min_count=2, workers=4)
