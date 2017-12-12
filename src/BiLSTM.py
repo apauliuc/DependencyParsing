@@ -5,6 +5,16 @@ import numpy as np
 
 import embedding as em
 
+NUM_EPOCHS = 100
+
+NUM_LAYERS = 2
+
+HIDDEN_DIMENSION = 100
+
+INPUT_SIZE = 100
+
+LEARNING_RATE = 0.001
+
 torch.manual_seed(1)
 
 if torch.cuda.is_available():
@@ -97,7 +107,7 @@ class BiLSTMTagger(nn.Module):
             # append to matrix  the rows
             matrix.append(matrix_row)
 
-        matrix = torch.cat(matrix, 0)  # TODO: we return the matrix as it is, because torch.CrossEntropyLoss will apply softmax on it.
+        matrix = torch.cat(matrix, 0)  # we return the matrix as it is, because torch.CrossEntropyLoss will apply softmax on it.
 
         return matrix
 
@@ -114,25 +124,24 @@ def prepare_sequence(sequence, element2index):
 
 
 if __name__ == '__main__':
-    word_embeddings = autograd.Variable(torch.from_numpy(np.array(em.word_embeddings()).astype(np.float)).float())
-    pos_embeddings = autograd.Variable(torch.from_numpy(np.array(em.tag_embeddings()).astype(np.float)).float())
+    word_embeddings = autograd.Variable(torch.from_numpy(np.array(em.word_embeddings(), dtype=np.float))).type(floatTensor)
+    pos_embeddings = autograd.Variable(torch.from_numpy(np.array(em.tag_embeddings(), dtype=np.float))).type(floatTensor)
 
-    model = BiLSTMTagger(input_size=100, hidden_dim=100, num_layers=2, word_embeddings=word_embeddings,
+    model = BiLSTMTagger(input_size=INPUT_SIZE, hidden_dim=HIDDEN_DIMENSION, num_layers=NUM_LAYERS, word_embeddings=word_embeddings,
                          pos_embeddings=pos_embeddings)
+
+    # TODO: should be able to load model if we want to continue training.
 
     loss_function = nn.CrossEntropyLoss()
 
     parameters = filter(lambda p: p.requires_grad, model.parameters())
-    optimizer = torch.optim.SGD(parameters, lr=0.1)
+    optimizer = torch.optim.SGD(parameters, lr=LEARNING_RATE)
 
     conllu_sentences = em.en_train_sentences()
 
-    count = 0
-    for epoch in range(1):
-        counter = 0
+    for epoch in range(NUM_EPOCHS):
+        epoch_loss = 0
         for conllu_sentence in conllu_sentences:
-            print(count)
-            count += 1
 
             sentence = conllu_sentence.get_word_list()
             tags = conllu_sentence.get_pos_list()
@@ -154,7 +163,14 @@ if __name__ == '__main__':
             arc_scores = model(sentence_in, post_tags_in)
 
             # Step 4. Compute the loss, gradients, and update the parameters by calling optimizer.step()
-            targets = autograd.Variable(torch.from_numpy(np.array(conllu_sentence.get_head_representation()).astype(np.float))).type(float)
-            loss = loss_function(arc_scores.permute(1, 0), targets)  # TODO: check to see how exactly to send the data to loss function(i.e. 'permute' or 'no permute'??)
+            targets = autograd.Variable(torch.from_numpy(np.array(conllu_sentence.get_head_representation(), dtype=np.long))).type(longTensor)
+            loss = loss_function(arc_scores.permute(1, 0), targets)
             loss.backward()
             optimizer.step()
+
+            epoch_loss += loss
+
+        epoch_loss /= len(conllu_sentences)
+        print(epoch_loss)
+
+        # TODO: should save model to file.
