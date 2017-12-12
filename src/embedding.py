@@ -137,10 +137,13 @@ def get_gensim_sentences(sentences):
         for word in sentence.words:
             gensim_word_sentence.append(word.FORM.lower())
             word_counts[word.FORM.lower()] += 1
+
             gensim_POS_sentence.append(word.UPOSTAG.lower())
             POS_counts[word.UPOSTAG.lower()] += 1
-            # some labels comprize multiple words(i.e: "nsubj:poss"), so we take only the first label
+
+            # some labels comprise multiple words(i.e: "nsubj:poss"), so we take only the first label
             label_counts[word.DEPREL.split(":")[0].lower()] += 1
+
         gensim_word_sentences.append(gensim_word_sentence)
         gensim_POS_sentences.append(gensim_POS_sentence)
     return gensim_word_sentences, word_counts, gensim_POS_sentences, POS_counts, label_counts
