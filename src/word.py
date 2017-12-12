@@ -1,6 +1,13 @@
 class Word:
     """Word class that maps all details for a word from a *.conllu file. """
 
+    ROOT_TAG = "<ROOT_TAG>"
+    ROOT_WORD = "<ROOT_WORD>"
+    ROOT_LABEL = "<ROOT_LABEL>"
+    UNKNOWN_WORD = "<UNK_WORD>"
+    UNKNOWN_TAG = "<UNK_TAG>"
+    UNKNOWN_LABEL = "<UNK_LABEL>"
+
     def __init__(self, ID, FORM, LEMMA, UPOSTAG, XPOSTAG, FEATS, HEAD, DEPREL, DEPS, MISC):
         self.ID = ID  # Word idx, int starting at 1 for each new sentence; or a range for multiword tokens
         self.FORM = FORM  # Word form or punctuation symbol.
@@ -18,9 +25,9 @@ class Word:
 
         string += self.ID if self.ID is not None else '_'
         string += " "
-        string += self.FORM     # if self.FORM is not None else '_'   -> Words can not be None. Here, '_' simply means an underscore.
+        string += self.FORM  # if self.FORM is not None else '_'   -> Words can not be None. Here, '_' simply means an underscore.
         string += " "
-        string += self.LEMMA    # if self.LEMMA is not None else '_'  -> Words can not be None. Here, '_' simply means an underscore.
+        string += self.LEMMA  # if self.LEMMA is not None else '_'  -> Words can not be None. Here, '_' simply means an underscore.
         string += " "
         string += self.UPOSTAG if self.UPOSTAG is not None else '_'
         string += " "
@@ -45,8 +52,8 @@ class Word:
         assert len(tokens) == 10
 
         ID = tokens[0] if tokens[0] != '_' else None
-        FORM = tokens[1]    # if tokens[1] != '_' else None
-        LEMMA = tokens[2]   # if tokens[2] != '_' else None
+        FORM = tokens[1]  # if tokens[1] != '_' else None
+        LEMMA = tokens[2]  # if tokens[2] != '_' else None
         UPOSTAG = tokens[3] if tokens[3] != '_' else None
         XPOSTAG = tokens[4] if tokens[4] != '_' else None
         FEATS = tokens[5] if tokens[5] != '_' else None

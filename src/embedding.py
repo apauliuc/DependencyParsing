@@ -8,13 +8,14 @@ from bokeh.palettes import d3
 from bokeh.io import output_notebook
 
 from sentence import Sentence
+from word import Word
 
-ROOT_TAG = "<ROOT_TAG>"
-ROOT_WORD = "<ROOT_WORD>"
-ROOT_LABEL = "<ROOT_LABEL>"
-UNKNOWN_WORD = "<UNK_WORD>"
-UNKNOWN_TAG = "<UNK_TAG>"
-UNKNOWN_LABEL = "<UNK_LABEL>"
+ROOT_TAG = Word.ROOT_TAG
+ROOT_WORD = Word.ROOT_WORD
+ROOT_LABEL = Word.ROOT_LABEL
+UNKNOWN_WORD = Word.UNKNOWN_WORD
+UNKNOWN_TAG = Word.UNKNOWN_TAG
+UNKNOWN_LABEL = Word.UNKNOWN_LABEL
 
 output_notebook()
 
@@ -264,7 +265,6 @@ def tag_embeddings():
 
 
 if __name__ == '__main__':
-
     '''
     
     # models that have a default behaviour and return a representation for unknown words.

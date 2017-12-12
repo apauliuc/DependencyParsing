@@ -6,6 +6,13 @@ import numpy as np
 class Sentence:
     """Sentence class that maps all details for a sentence from a *.conllu file. """
 
+    ROOT_TAG = Word.ROOT_TAG
+    ROOT_WORD = Word.ROOT_WORD
+    ROOT_LABEL = Word.ROOT_LABEL
+    UNKNOWN_WORD = Word.UNKNOWN_WORD
+    UNKNOWN_TAG = Word.UNKNOWN_TAG
+    UNKNOWN_LABEL = Word.UNKNOWN_LABEL
+
     def __init__(self, newdoc_id, send_id, text, words):
         self.new_doc_id = newdoc_id
         self.send_id = send_id
@@ -59,29 +66,33 @@ class Sentence:
 
     def get_matrix_representation(self):
         """
-        For more info: https://github.com/bastings/nlp1-2017-projects/blob/master/dep-parser/adjacency.gif
+        For some info: https://github.com/bastings/nlp1-2017-projects/blob/master/dep-parser/adjacency.gif
         """
-        matrix = np.zeros((len(self.words) + 1, len(self.words)+ 1) , dtype=np.int)
+        matrix = np.zeros((len(self.words) + 1, len(self.words) + 1), dtype=np.int)
         for word in self.words:
             matrix[int(word.HEAD)][int(word.ID)] = 1
         matrix[0][0] = 1
         return matrix
 
     def get_head_representation(self):
-        matrix = np.zeros(len(self.words), dtype=np.int)
+        """
+        For some info: https://github.com/bastings/nlp1-2017-projects/blob/master/dep-parser/adjacency.gif
+        :return: returns the true distributions; this is used by the torch.nn.CrossEntropyLoss.
+        """
+        list = np.zeros(len(self.words) + 1, dtype=np.int)
         for index, word in enumerate(self.words):
-            if int(word.HEAD) != 0:  # we don't include the "ROOT" node.
-                matrix[index] = int(word.HEAD) - 1
-        return matrix
+            list[index + 1] = int(word.HEAD)
+        list[0] = 0
+        return list
 
     def get_word_list(self):
-        sentence = []
+        sentence = [self.ROOT_WORD]
         for word in self.words:
             sentence.append(word.FORM.lower())
         return sentence
 
     def get_pos_list(self):
-        sentence = []
+        sentence = [self.ROOT_TAG]
         for word in self.words:
             sentence.append(word.UPOSTAG.lower())
         return sentence
@@ -107,7 +118,10 @@ if __name__ == '__main__':
              "15	peace	peace	NOUN	NN	Number=Sing	13	nmod	13:nmod	SpaceAfter=No",
              "16	.	.	PUNCT	.	_	4	punct	4:punct	_"]
     sentence = Sentence.from_lines(lines)
-    print(str(sentence), "\n")
-    print(sentence.text, "\n")
-    print(sentence.words[0], "\n")
-    print(sentence.get_matrix_representation())
+    print("1:\n", str(sentence), "\n")
+    print("2:\t", sentence.text, "\n")
+    print("3:\t", sentence.words[0], "\n")
+    print("4:\n", sentence.get_matrix_representation(), "\n")
+    print("5:\t", sentence.get_head_representation(), "\n")
+    print("6:\t", sentence.get_word_list(), "\n")
+    print("7:\t", sentence.get_pos_list(), "\n")
