@@ -119,7 +119,7 @@ def emb_scatter(data, names, N=20, perplexity=30.0):
 
 def get_gensim_sentences(sentences):
     """
-    This function receives a list of Sencences and return
+    This function receives a list of Sentences and return
     the word and POS sentences in the format Gensim needs,
     as well as Counters for words, POS tags and dependency
     relation labels.
