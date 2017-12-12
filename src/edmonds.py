@@ -8,7 +8,8 @@ from collections import defaultdict
 
 def matrix_to_graph(A, sent, digraph=False):
     """
-    This function turns a numpy matrix into a networkx graph.
+    This function turns a numpy matrix into a networkx graph with every node having a 'word' property
+    whose values is one of words in the sentence.
     :param A: numpy square matrix
     :param sent: a sentence given as a list of words; words will be used as labels of the nodes.
     :param digraph: if the graph directed or not.
@@ -29,7 +30,7 @@ def matrix_to_graph(A, sent, digraph=False):
     return G, weighted_edges
 
 
-def minimum_tree(G):
+def networkx_edmonds(G):
     """
     This function returns a maximum spanning tree, using the networkx' "Edmonds' Algorithm" implementation
     :param G: networkx Graph
@@ -44,7 +45,7 @@ def draw_nice(G, custom_labels=False):
     """
     This function draws a networkx Graph.
     :param G: networkx Graph
-    :param custom_labels: boolean; if true, nodes' 'word' property will be use to display nodes' label, else integers wil be used.
+    :param custom_labels: boolean; if true, nodes' 'word' property will be use to display nodes' label, else integers will be used.
     """
     colors = [G[i][j]['weight'] for (i, j) in G.edges()]
 
@@ -67,8 +68,7 @@ def draw_nice(G, custom_labels=False):
 
 def get_score(T):
     """
-    For a graph/tree "T", returns the sum of all
-    edges' weight
+    For a graph/tree "T", returns the sum of all edges' weight
     """
     score = 0
     for i, j in T.edges:
@@ -76,7 +76,7 @@ def get_score(T):
     return score
 
 
-def argmax(G, v):
+def maximum_incoming_edge(G, v):
     """
     Given the graph "G" and a node "v", this function
     returns, for node "v", the incoming edge of maximum weight
@@ -90,25 +90,25 @@ def argmax(G, v):
     return max_edge
 
 
-def get_nodes(C):
-    """
-    This function returns all the nodes from
-    cycle "C"
+def get_nodes(cycle):
+    """This function returns all the nodes from cycle "cycle"
+    :param cycle: list of tuples representing edges and weight of edges
+    :return: a list of integers representing the nodes in the cycle.
     """
     lista = []
-    for i, j, _ in C:
+    for i, j, _ in cycle:
         lista.append(i)
         lista.append(j)
     return list(set(lista))
 
 
-def get_incoming_edge(n, C):
+def get_incoming_edge(node, cycle):
     """
-    Given the cycle "C" and the node "n", this function returns
-    the edge from the cycle "C" goes from one node to node "n".
+    Given the cycle "cycle" and the node "node", this function returns
+    the edge from the cycle "cycle" goes from one node to node "node".
     """
-    for i, j, _ in C:
-        if j == n:
+    for i, j, _ in cycle:
+        if j == node:
             return (i, j)
     assert False
 
@@ -133,13 +133,13 @@ def prepare(G, root=0):
 
 def greedy(G, root=0):
     """
-    Now, for each node v other than the root, find the edge incoming to v of highest
+    For each node v other than the root, find the edge incoming to v of highest
     weight (with ties broken arbitrarily).
     """
     P = nx.DiGraph()
     for node in G.nodes():
         if node != root:
-            max_edge = argmax(G, node)
+            max_edge = maximum_incoming_edge(G, node)
             P.add_edge(max_edge[0], max_edge[1], weight=G.get_edge_data(max_edge[0], max_edge[1])['weight'])
     P.add_nodes_from(G.nodes)
     return P
@@ -156,7 +156,7 @@ def cleanup(G, root=0):
     dictionary = {}
     for node in G.nodes:
         if node != root:
-            max_edge = argmax(G, node)
+            max_edge = maximum_incoming_edge(G, node)
             max_score = G.get_edge_data(max_edge[0], max_edge[1])['weight']
             dictionary[node] = max_score
 
@@ -237,7 +237,7 @@ def expand(T_contracted, C, restore_dictionary, root=0, step=0):
     new_node = "new_" + str(step)
     nodes = get_nodes(C)
     G_expanded = nx.DiGraph()
-
+    edge_to_remove = None
     for i, j in T_contracted.edges:
         if i not in nodes and j not in nodes and i != new_node and j != new_node:
             G_expanded.add_edge(i, j, weight=T_contracted.get_edge_data(i, j)['weight'])
@@ -254,6 +254,8 @@ def expand(T_contracted, C, restore_dictionary, root=0, step=0):
             edge_to_remove = get_incoming_edge(restore_dictionary[(i, j)][1], C)
             continue
 
+    assert edge_to_remove is not None  # we should always have an edge to remove. this assertion is just to be 110% sure.
+
     # add all edges form C, except the one we just 'deleted'
     for i, j, _ in C:
         if (i, j) != edge_to_remove:
@@ -263,6 +265,11 @@ def expand(T_contracted, C, restore_dictionary, root=0, step=0):
 
 
 def is_same_tree(tree1, tree2):
+    """
+    :param tree1: networkx Graph
+    :param tree2: networkx Graph
+    :return: True if the graphs have the same edges, False otherwise
+    """
     dif1 = nx.difference(tree1, tree2)
     dif2 = nx.difference(tree2, tree1)
     same_graph = len(dif1.edges) == 0 and len(dif2.edges) == 0
@@ -270,6 +277,10 @@ def is_same_tree(tree1, tree2):
 
 
 def my_test_function():
+    """
+    In this function we just test the function 'edmonds()' and see how may times it returns
+    an erroneous result. It should print "0.0% are wrong"
+    """
     labels = ["nsubj", "dobj", "iobj", "det", "nmod", "amod", "cc", "conj"]
     sentence = "Eins Zwei Drei Vier Funf Sechs Sieben Acht Neun".split()
 
@@ -281,7 +292,7 @@ def my_test_function():
         graph, edges = matrix_to_graph(matrix, sentence, digraph=True)
 
         tree1 = edmonds(graph)
-        tree2 = minimum_tree(graph)
+        tree2 = networkx_edmonds(graph)
 
         if not is_same_tree(tree1, tree2):
             wrong_tests += 1
@@ -353,16 +364,15 @@ def edmonds_list(cost_matrix, sentence=[], root=None):
 if __name__ == '__main__':
     my_test_function()
 
-    labels = ["nsubj", "dobj", "iobj", "det", "nmod", "amod", "cc", "conj"]
     sentence = "Eins Zwei Drei Vier Funf Sechs Sieben Acht Neun".split()
 
     matrix = np.random.random((len(sentence), len(sentence)))
     graph, edges = matrix_to_graph(matrix, sentence, digraph=True)
 
-    tree = edmonds(graph)
+    tree = edmonds(graph)  # we get the maximum spanning tree using out algorithm
     print("Score:", get_score(tree))
     draw_nice(tree, custom_labels=False)
 
-    tree11 = minimum_tree(graph)
+    tree11 = networkx_edmonds(graph)  # this is just for checking our implementation
     print("Score:", get_score(tree11))
     draw_nice(tree11)

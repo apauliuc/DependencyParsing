@@ -58,10 +58,13 @@ class Sentence:
         return Sentence(new_doc_id, send_id, text, words)
 
     def get_matrix_representation(self):
-        matrix = np.zeros((len(self.words), len(self.words)), dtype=np.int)
+        """
+        For more info: https://github.com/bastings/nlp1-2017-projects/blob/master/dep-parser/adjacency.gif
+        """
+        matrix = np.zeros((len(self.words) + 1, len(self.words)+ 1) , dtype=np.int)
         for word in self.words:
-            if int(word.HEAD) != 0:  # we don't include the "ROOT" node.
-                matrix[int(word.HEAD) - 1][int(word.ID) - 1] = 1
+            matrix[int(word.HEAD)][int(word.ID)] = 1
+        matrix[0][0] = 1
         return matrix
 
     def get_head_representation(self):
