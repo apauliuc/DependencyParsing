@@ -161,7 +161,7 @@ def get_gensim_sentences(sentences):
 
 # def write_all_our_words():
 #     unknown_representation = []
-#     with open("../resources/glove50d_word.txt", 'w') as file:
+#     with open("../resources//glove50d_word.txt", 'w') as file:
 #         for w in word_vocabulary:
 #             if w in all_pre_trained_words:
 #                 file.write(w + " ")
@@ -186,7 +186,7 @@ def get_glove_pre_trained_tag_model():
     """
     PLOT TWIST: We get the pos_tag embeddings from training a gensim model.
     """
-    file = open("../resources/gensim50d_pos.txt")
+    file = open("../resources/embeddings/gensim50d_pos.txt")
 
     pre_trained_pos_tags = {}
     for line in file:
@@ -200,7 +200,7 @@ def get_glove_pre_trained_tag_model():
 
 
 def get_glove_pre_trained_word_model():
-    file = open("../resources/glove50d_word.txt")
+    file = open("../resources/embeddings/glove50d_word.txt")
     pre_trained_tokens = {}
     for line in file:
         tokens = line.split()

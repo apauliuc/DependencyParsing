@@ -5,6 +5,8 @@ import numpy as np
 
 import embedding as em
 
+LSTM_MODEL_WEIGHTS_RELATIVE_PATH = "../resources/parameters/model_weights"
+
 NUM_EPOCHS = 100
 
 NUM_LAYERS = 2
@@ -129,8 +131,11 @@ if __name__ == '__main__':
 
     model = BiLSTMTagger(input_size=INPUT_SIZE, hidden_dim=HIDDEN_DIMENSION, num_layers=NUM_LAYERS, word_embeddings=word_embeddings,
                          pos_embeddings=pos_embeddings)
+    model.train(True)
 
-    # TODO: should be able to load model if we want to continue training.
+    continue_train = False
+    if continue_train:
+        model.load_state_dict(torch.load(LSTM_MODEL_WEIGHTS_RELATIVE_PATH))
 
     loss_function = nn.CrossEntropyLoss()
 
@@ -142,7 +147,6 @@ if __name__ == '__main__':
     for epoch in range(NUM_EPOCHS):
         epoch_loss = 0
         for conllu_sentence in conllu_sentences:
-
             sentence = conllu_sentence.get_word_list()
             tags = conllu_sentence.get_pos_list()
 
@@ -173,4 +177,4 @@ if __name__ == '__main__':
         epoch_loss /= len(conllu_sentences)
         print(epoch_loss)
 
-        # TODO: should save model to file.
+    torch.save(model.state_dict(), LSTM_MODEL_WEIGHTS_RELATIVE_PATH)
