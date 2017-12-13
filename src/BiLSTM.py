@@ -5,6 +5,12 @@ import numpy as np
 
 import embedding as em
 
+POS_EMBEDDINGS_RELATIVE_PATH = "../resources/parameters/pos_embeddings"
+
+WORD_EMBEDDINGS_RELATIVE_PATH = "../resources/parameters/word_embeddings"
+
+OPTIMISER_MODEL_RELATIVE_PATH = "../resources/parameters/optimiser_weights"
+
 LSTM_MODEL_WEIGHTS_RELATIVE_PATH = "../resources/parameters/model_weights"
 
 NUM_EPOCHS = 100
@@ -56,11 +62,11 @@ class BiLSTMTagger(nn.Module):
 
         # One linear layer Wx + b, input dim 100 output dim 100
         self.mlp_head1 = nn.Linear(input_size, input_size)
-        self.mlp_head2 = nn.Linear(input_size, input_size)
+        # self.mlp_head2 = nn.Linear(input_size, input_size)
 
         # One linear layer Wx + b, input dim 100 output dim 100
         self.mlp_dependent1 = nn.Linear(input_size, input_size)
-        self.mlp_dependent2 = nn.Linear(input_size, input_size)
+        # self.mlp_dependent2 = nn.Linear(input_size, input_size)
 
         # activation function  h(Wx + b)
         self.ReLU = nn.ReLU()
@@ -95,8 +101,10 @@ class BiLSTMTagger(nn.Module):
         for v_i in lstm_out:
             matrix_row = []
             for v_j in lstm_out:
-                v_i_head = self.ReLU(self.mlp_head2(self.ReLU(self.mlp_head1(v_i))))
-                v_j_dependent = self.ReLU(self.mlp_dependent2(self.ReLU(self.mlp_dependent1(v_j))))
+                # v_i_head = self.ReLU(self.mlp_head2(self.ReLU(self.mlp_head1(v_i))))                      #   we will use just on layer instead of two.
+                # v_j_dependent = self.ReLU(self.mlp_dependent2(self.ReLU(self.mlp_dependent1(v_j))))       #   we will use just on layer instead of two.
+                v_i_head = self.ReLU(self.mlp_head1(v_i))
+                v_j_dependent = self.ReLU(self.mlp_dependent1(v_j))
 
                 # for each pair, of v_i_head and v_j_dependent go through bi_linear, so that we have a score
                 score = self.bi_linear(v_i_head, v_j_dependent)
@@ -133,18 +141,24 @@ if __name__ == '__main__':
                          pos_embeddings=pos_embeddings)
     model.train(True)
 
+    parameters = model.parameters()
+    optimizer = torch.optim.Adam(parameters, lr=LEARNING_RATE)
+
     continue_train = False
     if continue_train:
         model.load_state_dict(torch.load(LSTM_MODEL_WEIGHTS_RELATIVE_PATH))
+        optimizer.load_state_dict(torch.load(OPTIMISER_MODEL_RELATIVE_PATH))
+        model.word_embeddings.weight = autograd.Variable(torch.from_numpy(np.array(torch.load(WORD_EMBEDDINGS_RELATIVE_PATH), dtype=np.float))).type(floatTensor)
+        model.pos_embeddings.weight = autograd.Variable(torch.from_numpy(np.array(torch.load(POS_EMBEDDINGS_RELATIVE_PATH), dtype=np.float))).type(floatTensor)
 
     loss_function = nn.CrossEntropyLoss()
-
-    parameters = filter(lambda p: p.requires_grad, model.parameters())
-    optimizer = torch.optim.SGD(parameters, lr=LEARNING_RATE)
+    if torch.cuda.is_available():
+        loss_function.cuda()
 
     conllu_sentences = em.en_train_sentences()
 
     for epoch in range(NUM_EPOCHS):
+        print("Epoch [%d/%d]\tLoss:" % (epoch + 1, NUM_EPOCHS), end="", flush=True)
         epoch_loss = 0
         for conllu_sentence in conllu_sentences:
             sentence = conllu_sentence.get_word_list()
@@ -152,7 +166,7 @@ if __name__ == '__main__':
 
             # Step 1. Remember that PyTorch accumulates gradients.
             # We need to clear them out before each instance
-            model.zero_grad()
+            optimizer.zero_grad()
 
             # Also, we need to clear out the hidden state of the LSTM,
             # detaching it from its history on the last instance.
@@ -172,9 +186,13 @@ if __name__ == '__main__':
             loss.backward()
             optimizer.step()
 
-            epoch_loss += loss
+            epoch_loss += loss.data[0]
 
         epoch_loss /= len(conllu_sentences)
-        print(epoch_loss)
+        print(":%f" % (epoch_loss))
 
+    model.cpu()
+    torch.save(optimizer.state_dict(), OPTIMISER_MODEL_RELATIVE_PATH)
     torch.save(model.state_dict(), LSTM_MODEL_WEIGHTS_RELATIVE_PATH)
+    torch.save(model.word_embeddings.weight.numpy(), WORD_EMBEDDINGS_RELATIVE_PATH)
+    torch.save(model.pos_embeddings.weight.numpy(), POS_EMBEDDINGS_RELATIVE_PATH)
