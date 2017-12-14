@@ -27,7 +27,7 @@ LEARNING_RATE = 0.001
 
 MLP_ARC_OUTPUT = 400
 
-MLP_LABEL_OUTPUT = 200
+MLP_LABEL_OUTPUT = 100
 
 if torch.cuda.is_available():
     floatTensor = torch.cuda.FloatTensor
@@ -171,7 +171,7 @@ if __name__ == '__main__':
     model.train(True)
 
     parameters = model.parameters()
-    optimizer = torch.optim.Adam(parameters, lr=LEARNING_RATE, weight_decay=1e-6)
+    optimizer = torch.optim.Adam(parameters, lr=LEARNING_RATE, weight_decay=1e-6, betas=(0.9, 0.9))
     # scheduler = lr_scheduler.ReduceLROnPlateau(optimizer, patience=10, verbose=True)
 
     continue_train = False
