@@ -3,7 +3,7 @@ class Word:
 
     ROOT_TAG = "<ROOT_TAG>"
     ROOT_WORD = "<ROOT_WORD>"
-    ROOT_LABEL = "<ROOT_LABEL>"
+    ROOT_LABEL = "root"
     UNKNOWN_WORD = "<UNK_WORD>"
     UNKNOWN_TAG = "<UNK_TAG>"
     UNKNOWN_LABEL = "<UNK_LABEL>"

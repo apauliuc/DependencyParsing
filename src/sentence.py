@@ -91,7 +91,7 @@ class Sentence:
         """
         label_list = [self.ROOT_LABEL]
         for word in self.words:
-            label_list.append(word.DEPREL)
+            label_list.append(word.DEPREL.split(":")[0].lower())
         return label_list
 
     def get_word_list(self):

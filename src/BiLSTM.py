@@ -15,17 +15,19 @@ OPTIMISER_MODEL_RELATIVE_PATH = "../resources/parameters/optimiser_weights"
 
 LSTM_MODEL_WEIGHTS_RELATIVE_PATH = "../resources/parameters/model_weights"
 
-NUM_EPOCHS = 200
+NUM_EPOCHS = 150
 
 NUM_LAYERS = 3
 
-HIDDEN_DIMENSION = 400
+HIDDEN_DIMENSION = 300
 
 INPUT_SIZE = 100
 
 LEARNING_RATE = 0.001
 
-MLP_ARC_OUTPUT = 500
+MLP_ARC_OUTPUT = 400
+
+MLP_LABEL_OUTPUT = 200
 
 if torch.cuda.is_available():
     floatTensor = torch.cuda.FloatTensor
@@ -36,11 +38,14 @@ else:
 
 
 class BiLSTMTagger(nn.Module):
-    def __init__(self, input_size, hidden_dim, num_layers, mlp_arc_dimension, word_embeddings, pos_embeddings):
+    def __init__(self, input_size, hidden_dim, num_layers,
+                 mlp_arc_dimension, mlp_label_dimension, n_labels,
+                 word_embeddings, pos_embeddings):
         super(BiLSTMTagger, self).__init__()
 
         self.hidden_dim = hidden_dim
         self.num_layers = num_layers
+        self.n_labels = n_labels
 
         self.word_embeddings = nn.Embedding(word_embeddings.data.shape[0], word_embeddings.data.shape[1])
         self.word_embeddings.weight = nn.Parameter(word_embeddings.data)
@@ -64,23 +69,27 @@ class BiLSTMTagger(nn.Module):
 
         # One linear layer Wx + b, input dim 100 output dim 100
         self.mlp_arc_head = nn.Linear(hidden_dim, mlp_arc_dimension)
-        # self.mlp_head2 = nn.Linear(input_size, input_size)
 
         # One linear layer Wx + b, input dim 100 output dim 100
         self.mlp_arc_dependent = nn.Linear(hidden_dim, mlp_arc_dimension)
-        # self.mlp_dependent2 = nn.Linear(input_size, input_size)
-
-        # # One linear layer Wx + b for labels head, input dim 100 output dim 100
-        # self.mlp_label_head = nn.Linear(hidden_dim, input_size)
-        #
-        # # One linear layer Wx + b for labels dependent, input dim 100 output dim 100
-        # self.mlp_label_dependent = nn.Linear(hidden_dim, input_size)
 
         # activation function  h(Wx + b)
         self.ReLU = nn.ReLU()
 
-        # One linear layer for the first tranformation from Dozat & Manning
+        # One linear layer for the first arc tranformation from D&M
         self.transform_H_dependent = nn.Linear(mlp_arc_dimension, mlp_arc_dimension, bias=True)
+
+        # One linear layer Wx + b for labels head, input dim 100 output dim 100
+        self.mlp_label_head = nn.Linear(hidden_dim, mlp_label_dimension)
+
+        # One linear layer Wx + b for labels dependent, input dim 100 output dim 100
+        self.mlp_label_dependent = nn.Linear(hidden_dim, mlp_label_dimension)
+
+        # Bilinear for first term
+        self.label_bilinear = nn.Bilinear(mlp_label_dimension, mlp_label_dimension, n_labels, bias=False)
+
+        # Normal linear for 2nd
+        self.label_transform = nn.Linear(2 * mlp_label_dimension, n_labels, bias=True)
 
         if torch.cuda.is_available():
             self.cuda()
@@ -97,18 +106,18 @@ class BiLSTMTagger(nn.Module):
             autograd.Variable(torch.zeros(self.num_layers * self.num_directions, length, self.hidden_dim // 2)).type(
                 floatTensor))
 
-    def forward(self, sentence_word_indices, sentence_pos_indices):
+    def forward(self, sentence_word_indices, sentence_pos_indices, heads=None):
         # get embeddings for sentence
         embedded_sentence = torch.cat(
             (self.word_embeddings(sentence_word_indices), self.pos_embeddings(sentence_pos_indices)), 1)
-        length = len(embedded_sentence)
-        inputs = embedded_sentence.view(length, 1, -1)
+        sentence_length = len(embedded_sentence)
+        inputs = embedded_sentence.view(sentence_length, 1, -1)
 
         # pass through the biLstm layer
         lstm_out, self.hidden = self.bilstm(inputs, self.hidden)
 
         # compute head and dependent representations
-        R = lstm_out.view(length, -1)
+        R = lstm_out.view(sentence_length, -1)
         H_head = self.ReLU(self.mlp_arc_head(R))
         H_dependent = self.ReLU(self.mlp_arc_dependent(R))
 
@@ -116,7 +125,20 @@ class BiLSTMTagger(nn.Module):
         H_dep_transformed = self.transform_H_dependent(H_dependent)
         scores = torch.mm(H_head, torch.transpose(H_dep_transformed, 0, 1))
 
-        return scores
+        L_head = self.ReLU(self.mlp_label_head(R))
+        L_dependent = self.ReLU(self.mlp_label_dependent(R))
+
+        if heads is not None:   # training time
+            Ryi = L_head[tuple(heads), ]
+        else:   # prediction time
+            pass
+
+        first_term = self.label_bilinear(Ryi, L_dependent)
+        second_term = self.label_transform(torch.cat((Ryi, L_dependent), dim=1))
+
+        label_scores = first_term + second_term
+
+        return scores, label_scores
 
 
 def prepare_sequence(sequence, element2index):
@@ -144,7 +166,7 @@ if __name__ == '__main__':
         floatTensor)
 
     model = BiLSTMTagger(input_size=INPUT_SIZE, hidden_dim=HIDDEN_DIMENSION, num_layers=NUM_LAYERS,
-                         mlp_arc_dimension=MLP_ARC_OUTPUT,
+                         mlp_arc_dimension=MLP_ARC_OUTPUT, mlp_label_dimension=MLP_LABEL_OUTPUT, n_labels=len(em.i2l.keys()),
                          word_embeddings=word_embeddings, pos_embeddings=pos_embeddings)
     model.train(True)
 
@@ -175,7 +197,8 @@ if __name__ == '__main__':
         for conllu_sentence in conllu_sentences[19:20]:
             sentence = conllu_sentence.get_word_list()
             tags = conllu_sentence.get_pos_list()
-            # labels = [em.l2i(l) for l in conllu_sentence.get_label_list()]
+            labels = conllu_sentence.get_label_list()
+            head_representation = conllu_sentence.get_head_representation()
 
             # Step 1. Remember that PyTorch accumulates gradients.
             # We need to clear them out before each instance
@@ -189,27 +212,30 @@ if __name__ == '__main__':
             # Variables of word indices.
             sentence_in = prepare_sequence(sentence, em.w2i)
             post_tags_in = prepare_sequence(tags, em.t2i)
+            labels_in = prepare_sequence(labels, em.l2i)
 
             # Step 3. Run our forward pass.
-            arc_scores = model(sentence_in, post_tags_in)
-            # arc_scores, label_scores = model(sentence_in, post_tags_in)
+            # arc_scores = model(sentence_in, post_tags_in, head_representation.tolist())
+            arc_scores, label_scores = model(sentence_in, post_tags_in, head_representation.tolist())
 
             # Step 4. Compute the loss, gradients, and update the parameters by calling optimizer.step()
-            target_arcs = autograd.Variable(torch.from_numpy(np.array(conllu_sentence.get_head_representation(), dtype=np.long))).type(longTensor)
+            target_arcs = autograd.Variable(torch.from_numpy(np.array(head_representation, dtype=np.long))).type(longTensor)
             loss_arcs = loss_function(arc_scores.permute(1, 0), target_arcs)
-            loss = loss_arcs
+            loss_labels = loss_function(label_scores, labels_in)
+            loss = loss_arcs + loss_labels
+
             loss.backward()
             optimizer.step()
-
-            # target_labels = autograd.Variable(torch.from_numpy(np.array(labels, dtype=np.long))).type(longTensor)
-            # loss_labels = loss_function(label_scores, target_labels)
-            # loss = loss_arcs + loss_labels
 
             epoch_loss += loss.data[0]
 
         epoch_loss /= len(conllu_sentences)
         print(":%f" % epoch_loss)
 
+    print([em.i2l[l] for l in np.argmax(nn.Softmax()(label_scores).data.numpy(), axis=1)])
+    print(labels)
+
+    plot_matrix(nn.Softmax()(label_scores))
     plot_matrix(nn.Softmax()(arc_scores.permute(1, 0)).permute(1, 0))
 
     if save_model:
