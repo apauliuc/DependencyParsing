@@ -57,7 +57,7 @@ def ro_test_sentences():
 def read_sentences(path, filename):
     sentences = []
     sentence_lines = []
-    file = open(path + filename, 'r')
+    file = open(path + filename, 'r', encoding="utf-8")
     for line in file:
         if line == '\n':
             sentences.append(Sentence.from_lines(sentence_lines))
@@ -186,7 +186,7 @@ def get_glove_pre_trained_tag_model():
     """
     PLOT TWIST: We get the pos_tag embeddings from training a gensim model.
     """
-    file = open("../resources/embeddings/gensim50d_pos.txt")
+    file = open("../resources/embeddings/gensim50d_pos.txt", "r", encoding="utf-8")
 
     pre_trained_pos_tags = {}
     for line in file:
@@ -200,7 +200,7 @@ def get_glove_pre_trained_tag_model():
 
 
 def get_glove_pre_trained_word_model():
-    file = open("../resources/embeddings/glove50d_word.txt")
+    file = open("../resources/embeddings/glove50d_word.txt", "r", encoding="utf-8")
     pre_trained_tokens = {}
     for line in file:
         tokens = line.split()

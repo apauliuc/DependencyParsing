@@ -23,8 +23,6 @@ INPUT_SIZE = 100
 
 LEARNING_RATE = 0.001
 
-torch.manual_seed(1)
-
 if torch.cuda.is_available():
     floatTensor = torch.cuda.FloatTensor
     longTensor = torch.cuda.LongTensor
@@ -58,7 +56,7 @@ class BiLSTMTagger(nn.Module):
 
         self.num_directions = 2 if self.bilstm.bidirectional else 1
 
-        self.hidden = self.init_hidden()
+        self.hidden = self.init_hidden(0)
 
         # One linear layer Wx + b, input dim 100 output dim 100
         self.mlp_head1 = nn.Linear(input_size, input_size)
@@ -79,12 +77,12 @@ class BiLSTMTagger(nn.Module):
         else:
             self.cpu()
 
-    def init_hidden(self):
+    def init_hidden(self, length=1):
         # Before we've done anything, we don't have any hidden state.
         # Refer to the PyTorch documentation to see exactly why they have this dimensionality.
         # The axes semantics are (num_layers*num_directions, mini-batch_size, hidden_dim)
-        return (autograd.Variable(torch.zeros(self.num_layers * self.num_directions, 1, self.hidden_dim // 2)).type(floatTensor),
-                autograd.Variable(torch.zeros(self.num_layers * self.num_directions, 1, self.hidden_dim // 2)).type(floatTensor))
+        return (autograd.Variable(torch.zeros(self.num_layers * self.num_directions, length, self.hidden_dim // 2)).type(floatTensor),
+                autograd.Variable(torch.zeros(self.num_layers * self.num_directions, length, self.hidden_dim // 2)).type(floatTensor))
 
     def forward(self, sentence_word_indices, sentence_pos_indices):
         # get embeddings for sentence
@@ -170,7 +168,7 @@ if __name__ == '__main__':
 
             # Also, we need to clear out the hidden state of the LSTM,
             # detaching it from its history on the last instance.
-            model.hidden = model.init_hidden()
+            model.hidden = model.init_hidden(len(sentence))
 
             # Step 2. Get our inputs ready for the network, that is, turn them into
             # Variables of word indices.
