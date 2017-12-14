@@ -194,7 +194,7 @@ if __name__ == '__main__':
     for epoch in range(NUM_EPOCHS):
         print("Epoch [%d/%d]\tLoss:" % (epoch + 1, NUM_EPOCHS), end="", flush=True)
         epoch_loss = 0
-        for conllu_sentence in conllu_sentences[19:20]:
+        for conllu_sentence in conllu_sentences:
             sentence = conllu_sentence.get_word_list()
             tags = conllu_sentence.get_pos_list()
             labels = conllu_sentence.get_label_list()
