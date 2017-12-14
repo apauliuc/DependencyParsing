@@ -17,7 +17,7 @@ UNKNOWN_WORD = Word.UNKNOWN_WORD
 UNKNOWN_TAG = Word.UNKNOWN_TAG
 UNKNOWN_LABEL = Word.UNKNOWN_LABEL
 
-output_notebook()
+# output_notebook()
 
 en_path = "../resources/annotated_data/en/"
 en_dev_filename = "en-ud-dev.conllu"

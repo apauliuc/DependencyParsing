@@ -85,6 +85,15 @@ class Sentence:
         list[0] = 0
         return list
 
+    def get_label_list(self):
+        """
+        :return: returns the true label distribution of the sentence
+        """
+        label_list = [self.ROOT_LABEL]
+        for word in self.words:
+            label_list.append(word.DEPREL)
+        return label_list
+
     def get_word_list(self):
         sentence = [self.ROOT_WORD]
         for word in self.words:

@@ -2,6 +2,7 @@ import torch
 import torch.autograd as autograd
 import torch.nn as nn
 import numpy as np
+import matplotlib.pyplot as plt
 
 import embedding as em
 
@@ -59,18 +60,36 @@ class BiLSTMTagger(nn.Module):
         self.hidden = self.init_hidden(0)
 
         # One linear layer Wx + b, input dim 100 output dim 100
-        self.mlp_head1 = nn.Linear(input_size, input_size)
+        self.mlp_arc_head = nn.Linear(input_size, input_size)
         # self.mlp_head2 = nn.Linear(input_size, input_size)
 
         # One linear layer Wx + b, input dim 100 output dim 100
-        self.mlp_dependent1 = nn.Linear(input_size, input_size)
+        self.mlp_arc_dependent = nn.Linear(input_size, input_size)
         # self.mlp_dependent2 = nn.Linear(input_size, input_size)
+
+        # One linear layer Wx + b for labels head, input dim 100 output dim 100
+        self.mlp_label_head = nn.Linear(input_size, input_size)
+
+        # One linear layer Wx + b for labels dependent, input dim 100 output dim 100
+        self.mlp_label_dependent = nn.Linear(input_size, input_size)
 
         # activation function  h(Wx + b)
         self.ReLU = nn.ReLU()
 
-        # One bi-linear layer x1∗W1∗x2+b, input1 dim 100,input2 dim 100, output dim 1
-        self.bi_linear = nn.Bilinear(input_size, input_size, 1)
+        # One bi-linear layer x1∗W1∗x2+b for arcs, input1 dim 100,input2 dim 100, output dim 1
+        self.bi_linear_arc = nn.Bilinear(input_size, input_size, 1)
+
+        # One bi-linear layer x1∗W1∗x2+b for labels, input1 dim 100,input2 dim 100, output dim 1
+        self.bi_linear_label = nn.Bilinear(input_size, input_size, 1)
+
+        # U1 and u2
+        self.U_1 = nn.Linear(input_size, input_size)
+        # self.U_1.weight = nn.Parameter(torch.Tensor(input_size, input_size))
+        # self.U_1.requires_grad = True
+
+        self.u_2 = nn.Linear(input_size, 1)
+        # self.u_2.weight = nn.Parameter(torch.Tensor(input_size, 1))
+        # self.u_2.requires_grad = True
 
         if torch.cuda.is_available():
             self.cuda()
@@ -87,37 +106,48 @@ class BiLSTMTagger(nn.Module):
     def forward(self, sentence_word_indices, sentence_pos_indices):
         # get embeddings for sentence
         embedded_sentence = torch.cat((self.word_embeddings(sentence_word_indices), self.pos_embeddings(sentence_pos_indices)), 1)
-        inputs = embedded_sentence.view(len(embedded_sentence), 1, -1)
+        length = len(embedded_sentence)
+        inputs = embedded_sentence.view(length, 1, -1)
 
         # pass through the biLstm layer
         lstm_out, self.hidden = self.bilstm(inputs, self.hidden)
 
+        R = lstm_out.view(length, -1)
+        H_head = self.mlp_arc_head(R)
+        H_dep = self.mlp_arc_dependent(R)
+
+        U_2 = self.u_2.weight.repeat(1, length)
+        internal = torch.mm(self.U_1.weight, torch.transpose(H_dep, 0, 1)) + U_2
+        S = torch.mm(H_head, internal)
+
+        return S
+
         # TODO: we could use a technique called 'tiling', to have matrix multiplications instead of 'for in for'
         # do further processing in MLP
         # for each pair v_i, v_j, go with v_1 through mlp_head and with v_j to mlp_dependent
-        matrix = []
-        for v_i in lstm_out:
-            matrix_row = []
-            for v_j in lstm_out:
-                # v_i_head = self.ReLU(self.mlp_head2(self.ReLU(self.mlp_head1(v_i))))                      #   we will use just on layer instead of two.
-                # v_j_dependent = self.ReLU(self.mlp_dependent2(self.ReLU(self.mlp_dependent1(v_j))))       #   we will use just on layer instead of two.
-                v_i_head = self.ReLU(self.mlp_head1(v_i))
-                v_j_dependent = self.ReLU(self.mlp_dependent1(v_j))
+        # matrix = []
+        # for v_i in lstm_out:
+        #     matrix_row = []
+        #     for v_j in lstm_out:
+        #         # v_i_head = self.ReLU(self.mlp_head2(self.ReLU(self.mlp_head1(v_i))))                      #   we will use just on layer instead of two.
+        #         # v_j_dependent = self.ReLU(self.mlp_dependent2(self.ReLU(self.mlp_dependent1(v_j))))       #   we will use just on layer instead of two.
+        #         v_i_head = self.ReLU(self.mlp_arc_head(v_i))
+        #         v_j_dependent = self.ReLU(self.mlp_arc_dependent(v_j))
+        #
+        #         # for each pair, of v_i_head and v_j_dependent go through bi_linear, so that we have a score
+        #         score = self.bi_linear_arc(v_i_head, v_j_dependent)
+        #
+        #         # append to matrix_row the score
+        #         matrix_row.append(score)
+        #
+        #     matrix_row = torch.cat(matrix_row, 1)
+        #
+        #     # append to matrix  the rows
+        #     matrix.append(matrix_row)
+        #
+        # matrix = torch.cat(matrix, 0)  # we return the matrix as it is, because torch.CrossEntropyLoss will apply softmax on it.
 
-                # for each pair, of v_i_head and v_j_dependent go through bi_linear, so that we have a score
-                score = self.bi_linear(v_i_head, v_j_dependent)
-
-                # append to matrix_row the score
-                matrix_row.append(score)
-
-            matrix_row = torch.cat(matrix_row, 1)
-
-            # append to matrix  the rows
-            matrix.append(matrix_row)
-
-        matrix = torch.cat(matrix, 0)  # we return the matrix as it is, because torch.CrossEntropyLoss will apply softmax on it.
-
-        return matrix
+        # return matrix
 
 
 def prepare_sequence(sequence, element2index):
@@ -129,6 +159,13 @@ def prepare_sequence(sequence, element2index):
     indexes = [element2index[element] for element in sequence]
     tensor = longTensor(indexes)
     return autograd.Variable(tensor)
+
+
+def plot_matrix(matrix_variable):
+    plt.clf()
+    numpy_A = matrix_variable.data.numpy()
+    plt.imshow(numpy_A)
+    plt.show()
 
 
 if __name__ == '__main__':
@@ -158,9 +195,10 @@ if __name__ == '__main__':
     for epoch in range(NUM_EPOCHS):
         print("Epoch [%d/%d]\tLoss:" % (epoch + 1, NUM_EPOCHS), end="", flush=True)
         epoch_loss = 0
-        for conllu_sentence in conllu_sentences:
+        for conllu_sentence in conllu_sentences[2:3]:
             sentence = conllu_sentence.get_word_list()
             tags = conllu_sentence.get_pos_list()
+            # labels = [em.l2i(l) for l in conllu_sentence.get_label_list()]
 
             # Step 1. Remember that PyTorch accumulates gradients.
             # We need to clear them out before each instance
@@ -177,20 +215,27 @@ if __name__ == '__main__':
 
             # Step 3. Run our forward pass.
             arc_scores = model(sentence_in, post_tags_in)
+            plot_matrix(arc_scores)
+            # arc_scores, label_scores = model(sentence_in, post_tags_in)
 
             # Step 4. Compute the loss, gradients, and update the parameters by calling optimizer.step()
-            targets = autograd.Variable(torch.from_numpy(np.array(conllu_sentence.get_head_representation(), dtype=np.long))).type(longTensor)
-            loss = loss_function(arc_scores.permute(1, 0), targets)
+            target_arcs = autograd.Variable(torch.from_numpy(np.array(conllu_sentence.get_head_representation(), dtype=np.long))).type(longTensor)
+            # target_labels = autograd.Variable(torch.from_numpy(np.array(labels, dtype=np.long))).type(longTensor)
+            loss_arcs = loss_function(arc_scores.permute(1, 0), target_arcs)
+            # loss_labels = loss_function(label_scores, target_labels)
+
+            loss = loss_arcs
+            # loss = loss_arcs + loss_labels
             loss.backward()
             optimizer.step()
 
             epoch_loss += loss.data[0]
 
         epoch_loss /= len(conllu_sentences)
-        print(":%f" % (epoch_loss))
+        print(":%f" % epoch_loss)
 
-    model.cpu()
-    torch.save(optimizer.state_dict(), OPTIMISER_MODEL_RELATIVE_PATH)
-    torch.save(model.state_dict(), LSTM_MODEL_WEIGHTS_RELATIVE_PATH)
-    torch.save(model.word_embeddings.weight.numpy(), WORD_EMBEDDINGS_RELATIVE_PATH)
-    torch.save(model.pos_embeddings.weight.numpy(), POS_EMBEDDINGS_RELATIVE_PATH)
+    # model.cpu()
+    # torch.save(optimizer.state_dict(), OPTIMISER_MODEL_RELATIVE_PATH)
+    # torch.save(model.state_dict(), LSTM_MODEL_WEIGHTS_RELATIVE_PATH)
+    # torch.save(model.word_embeddings.weight.numpy(), WORD_EMBEDDINGS_RELATIVE_PATH)
+    # torch.save(model.pos_embeddings.weight.numpy(), POS_EMBEDDINGS_RELATIVE_PATH)
