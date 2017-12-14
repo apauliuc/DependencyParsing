@@ -175,7 +175,7 @@ if __name__ == '__main__':
     # scheduler = lr_scheduler.ReduceLROnPlateau(optimizer, patience=10, verbose=True)
 
     continue_train = False
-    save_model = False
+    save_model = True
 
     if continue_train:
         model.load_state_dict(torch.load(LSTM_MODEL_WEIGHTS_RELATIVE_PATH))
@@ -232,11 +232,11 @@ if __name__ == '__main__':
         epoch_loss /= len(conllu_sentences)
         print(":%f" % epoch_loss)
 
-    print([em.i2l[l] for l in np.argmax(nn.Softmax()(label_scores).data.numpy(), axis=1)])
-    print(labels)
-
-    plot_matrix(nn.Softmax()(label_scores))
-    plot_matrix(nn.Softmax()(arc_scores.permute(1, 0)).permute(1, 0))
+    # DEBUG
+    # print([em.i2l[l] for l in np.argmax(nn.Softmax()(label_scores).data.numpy(), axis=1)])
+    # print(labels)
+    # plot_matrix(nn.Softmax()(label_scores))
+    # plot_matrix(nn.Softmax()(arc_scores.permute(1, 0)).permute(1, 0))
 
     if save_model:
         model.cpu()
