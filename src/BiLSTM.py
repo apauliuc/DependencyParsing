@@ -15,7 +15,7 @@ import edmonds as ed
 
 logging.basicConfig(filename='../resources/logs/training_{}.log'.format(time.strftime('%d-%m-%Y%_H:%M:%S')), level=logging.DEBUG)
 
-NUM_EPOCHS = 150
+NUM_EPOCHS = 100
 
 NUM_LAYERS = 3
 
@@ -123,8 +123,7 @@ class BiLSTMTagger(nn.Module):
         if heads is not None:  # training time
             Ryi = L_head[tuple(heads), ]
         else:  # prediction time
-            scores.cpu()
-            root = np.argmax(scores.data.numpy()[1, 1:])  # get the true root node
+            root = np.argmax(scores.data.cpu().numpy()[1, 1:])  # get the true root node
             mst = ed.edmonds_list(cost_matrix=scores.data.numpy()[1:, 1:], sentence=sentence[1:], root=root)
             heads = np.zeros(len(sentence), dtype=np.int)
             for pair in mst:
@@ -303,7 +302,7 @@ if __name__ == '__main__':
         loss_function.cuda()
 
     if args.language == 'en':
-        conllu_sentences_train = em.en_train_sentences()
+        conllu_sentences_train = em.en_train_sentences()[:50]
         conllu_sentences_dev = em.en_dev_sentences()
     elif args.language == 'ro':
         conllu_sentences_train = em.ro_train_sentences()
