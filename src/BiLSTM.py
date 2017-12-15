@@ -65,8 +65,6 @@ class BiLSTMTagger(nn.Module):
 
         self.num_directions = 2 if self.bilstm.bidirectional else 1
 
-        self.hidden = self.init_hidden(0)
-
         # One linear layer Wx + b, input dim 100 output dim 100
         self.mlp_arc_head = nn.Linear(hidden_dim, mlp_arc_dimension)
 
@@ -96,16 +94,6 @@ class BiLSTMTagger(nn.Module):
         else:
             self.cpu()
 
-    def init_hidden(self, length=1):
-        # Before we've done anything, we don't have any hidden state.
-        # Refer to the PyTorch documentation to see exactly why they have this dimensionality.
-        # The axes semantics are (num_layers*num_directions, mini-batch_size, hidden_dim)
-        return (
-            autograd.Variable(torch.zeros(self.num_layers * self.num_directions, length, self.hidden_dim // 2)).type(
-                floatTensor),
-            autograd.Variable(torch.zeros(self.num_layers * self.num_directions, length, self.hidden_dim // 2)).type(
-                floatTensor))
-
     def forward(self, sentence_word_indices, sentence_pos_indices, heads, sentence):
         # heads means you are in training, sentence means you are in validation / prediction
         if heads is None and sentence is None:
@@ -115,10 +103,10 @@ class BiLSTMTagger(nn.Module):
         embedded_sentence = torch.cat(
             (self.word_embeddings(sentence_word_indices), self.pos_embeddings(sentence_pos_indices)), 1)
         sentence_length = len(embedded_sentence)
-        inputs = embedded_sentence.view(sentence_length, 1, -1)
+        inputs = embedded_sentence.view(1, sentence_length, -1)
 
         # pass through the biLstm layer
-        lstm_out, self.hidden = self.bilstm(inputs, self.hidden)
+        lstm_out = self.bilstm(inputs)[0]
 
         # compute head and dependent representations
         R = lstm_out.view(sentence_length, -1)
@@ -143,7 +131,7 @@ class BiLSTMTagger(nn.Module):
                 dep = pair[1]
                 # the first element should always point to zero because mst does not know about the root ROOT stuff
                 heads[dep + 1] = head
-            Ryi = L_head[tuple(heads.tolist()),]
+            Ryi = L_head[tuple(heads.tolist()), ]
 
         first_term = self.label_bilinear(Ryi, L_dependent)
         second_term = self.label_transform(torch.cat((Ryi, L_dependent), dim=1))
@@ -189,10 +177,6 @@ def train_model(model, optimizer, loss_function, conllu_sentences):
         # We need to clear them out before each instance
         optimizer.zero_grad()
 
-        # Also, we need to clear out the hidden state of the LSTM,
-        # detaching it from its history on the last instance.
-        model.hidden = model.init_hidden(len(sentence))
-
         # Step 2. Get our inputs ready for the network, that is, turn them into
         # Variables of word indices.
         sentence_in = prepare_sequence(sentence, em.w2i)
@@ -226,10 +210,6 @@ def validate_model(model, loss_function, conllu_sentences):
         tags = conllu_sentence.get_pos_list()
         labels = conllu_sentence.get_label_list()
         head_representation = conllu_sentence.get_head_representation()
-
-        # Also, we need to clear out the hidden state of the LSTM,
-        # detaching it from its history on the last instance.
-        model.hidden = model.init_hidden(len(sentence))
 
         # Step 2. Get our inputs ready for the network, that is, turn them into
         # Variables of word indices.
@@ -385,4 +365,3 @@ if __name__ == '__main__':
     # print(labels)
     # plot_matrix(nn.Softmax()(label_scores))
     # plot_matrix(nn.Softmax()(arc_scores.permute(1, 0)).permute(1, 0))
-
