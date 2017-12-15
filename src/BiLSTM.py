@@ -4,16 +4,13 @@ import torch.optim.lr_scheduler as lr_scheduler
 import torch.nn as nn
 import numpy as np
 import matplotlib.pyplot as plt
+import math
+import shutil
+import time
+import argparse
 
 import embedding as em
-
-POS_EMBEDDINGS_RELATIVE_PATH = "../resources/parameters/pos_embeddings"
-
-WORD_EMBEDDINGS_RELATIVE_PATH = "../resources/parameters/word_embeddings"
-
-OPTIMISER_MODEL_RELATIVE_PATH = "../resources/parameters/optimiser_weights"
-
-LSTM_MODEL_WEIGHTS_RELATIVE_PATH = "../resources/parameters/model_weights"
+import edmonds as ed
 
 NUM_EPOCHS = 150
 
@@ -106,7 +103,11 @@ class BiLSTMTagger(nn.Module):
             autograd.Variable(torch.zeros(self.num_layers * self.num_directions, length, self.hidden_dim // 2)).type(
                 floatTensor))
 
-    def forward(self, sentence_word_indices, sentence_pos_indices, heads=None):
+    def forward(self, sentence_word_indices, sentence_pos_indices, heads, sentence):
+        # heads means you are in training, sentence means you are in validation / prediction
+        if heads is None and sentence is None:
+            raise ValueError('Either heads or sentence needs to be provided.')
+
         # get embeddings for sentence
         embedded_sentence = torch.cat(
             (self.word_embeddings(sentence_word_indices), self.pos_embeddings(sentence_pos_indices)), 1)
@@ -128,10 +129,18 @@ class BiLSTMTagger(nn.Module):
         L_head = self.ReLU(self.mlp_label_head(R))
         L_dependent = self.ReLU(self.mlp_label_dependent(R))
 
-        if heads is not None:   # training time
+        if heads is not None:  # training time
             Ryi = L_head[tuple(heads), ]
-        else:   # prediction time
-            pass
+        else:  # prediction time
+            root = np.argmax(scores.data.numpy()[1, 1:])  # get the true root node
+            mst = ed.edmonds_list(cost_matrix=scores.data.numpy()[1:, 1:], sentence=sentence[1:], root=root)
+            heads = np.zeros(len(sentence), dtype=np.int)
+            for pair in mst:
+                head = pair[0]
+                dep = pair[1]
+                # the first element should always point to zero because mst does not know about the root ROOT stuff
+                heads[dep + 1] = head
+            Ryi = L_head[tuple(heads.tolist()),]
 
         first_term = self.label_bilinear(Ryi, L_dependent)
         second_term = self.label_transform(torch.cat((Ryi, L_dependent), dim=1))
@@ -159,78 +168,201 @@ def plot_matrix(matrix_variable):
     plt.show()
 
 
+def save_checkpoint(checkpoint, best):
+    torch.save(checkpoint, LATEST_CHECKPOINT_RELATIVE_PATH)
+    if best:
+        shutil.copyfile(LATEST_CHECKPOINT_RELATIVE_PATH, BEST_CHECKPOINT_RELATIVE_PATH)
+
+
+def train_model(model, optimizer, loss_function, conllu_sentences):
+    train_loss = 0
+    for conllu_sentence in conllu_sentences:
+        sentence = conllu_sentence.get_word_list()
+        tags = conllu_sentence.get_pos_list()
+        labels = conllu_sentence.get_label_list()
+        head_representation = conllu_sentence.get_head_representation()
+
+        # Step 1. Remember that PyTorch accumulates gradients.
+        # We need to clear them out before each instance
+        optimizer.zero_grad()
+
+        # Also, we need to clear out the hidden state of the LSTM,
+        # detaching it from its history on the last instance.
+        model.hidden = model.init_hidden(len(sentence))
+
+        # Step 2. Get our inputs ready for the network, that is, turn them into
+        # Variables of word indices.
+        sentence_in = prepare_sequence(sentence, em.w2i)
+        post_tags_in = prepare_sequence(tags, em.t2i)
+        labels_in = prepare_sequence(labels, em.l2i)
+
+        # Step 3. Run our forward pass.
+        arc_scores, label_scores = model(sentence_in, post_tags_in, head_representation.tolist(), None)
+
+        # Step 4. Compute the loss, gradients, and update the parameters by calling optimizer.step()
+        target_arcs = autograd.Variable(torch.from_numpy(np.array(head_representation, dtype=np.long))).type(
+            longTensor)
+        loss_arcs = loss_function(arc_scores.permute(1, 0), target_arcs)
+        loss_labels = loss_function(label_scores, labels_in)
+        loss = loss_arcs + loss_labels
+
+        loss.backward()
+        optimizer.step()
+
+        train_loss += loss.data[0]
+
+    train_loss /= len(conllu_sentences)
+    print('Training loss: {}'.format(train_loss))
+    return train_loss, arc_scores, label_scores
+
+
+def validate_model(model, loss_function, conllu_sentences):
+    validate_loss = 0
+    for conllu_sentence in conllu_sentences:
+        sentence = conllu_sentence.get_word_list()
+        tags = conllu_sentence.get_pos_list()
+        labels = conllu_sentence.get_label_list()
+        head_representation = conllu_sentence.get_head_representation()
+
+        # Also, we need to clear out the hidden state of the LSTM,
+        # detaching it from its history on the last instance.
+        model.hidden = model.init_hidden(len(sentence))
+
+        # Step 2. Get our inputs ready for the network, that is, turn them into
+        # Variables of word indices.
+        sentence_in = prepare_sequence(sentence, em.w2i)
+        post_tags_in = prepare_sequence(tags, em.t2i)
+        labels_in = prepare_sequence(labels, em.l2i)
+
+        # Step 3. Run our forward pass.
+        arc_scores, label_scores = model(sentence_in, post_tags_in, None, sentence)
+
+        # Step 4. Compute the loss
+        target_arcs = autograd.Variable(torch.from_numpy(np.array(head_representation, dtype=np.long))).type(
+            longTensor)
+        loss_arcs = loss_function(arc_scores.permute(1, 0), target_arcs)
+        loss_labels = loss_function(label_scores, labels_in)
+        loss = loss_arcs + loss_labels
+
+        validate_loss += loss.data[0]
+
+    validate_loss /= len(conllu_sentences[0:20])
+    print("Validation loss: {}".format(validate_loss))
+    return validate_loss, arc_scores, label_scores
+
+
 if __name__ == '__main__':
+    # parse command-line arguments
+    parser = argparse.ArgumentParser(description='Start anew or resume training')
+    parser.add_argument('-m', '--mode', type=str, choices=['start', 'resume'], required=True, help='start from scratch or resume training: [start, resume]')
+    parser.add_argument('-l', '--language', type=str, choices=['en', 'ro'], required=True, help='which language to model: [en, ro]')
+    args = parser.parse_args()
+
+    if args.mode == 'start':
+        print('Started training at {}.'.format(time.strftime('%d-%m-%Y, %H:%M:%S')))
+    elif args.mode == 'resume':
+        print('Resumed training at {}.'.format(time.strftime('%d-%m-%Y, %H:%M:%S')))
+
+    global LATEST_CHECKPOINT_RELATIVE_PATH
+    LATEST_CHECKPOINT_RELATIVE_PATH = '../resources/checkpoints/{}/latest_checkpoint.tar'.format(args.language)
+    global BEST_CHECKPOINT_RELATIVE_PATH
+    BEST_CHECKPOINT_RELATIVE_PATH = '../resources/checkpoints/{}/best_checkpoint.tar'.format(args.language)
+
     word_embeddings = autograd.Variable(torch.from_numpy(np.array(em.word_embeddings(), dtype=np.float))).type(
         floatTensor)
     pos_embeddings = autograd.Variable(torch.from_numpy(np.array(em.tag_embeddings(), dtype=np.float))).type(
         floatTensor)
 
     model = BiLSTMTagger(input_size=INPUT_SIZE, hidden_dim=HIDDEN_DIMENSION, num_layers=NUM_LAYERS,
-                         mlp_arc_dimension=MLP_ARC_OUTPUT, mlp_label_dimension=MLP_LABEL_OUTPUT, n_labels=len(em.i2l.keys()),
+                         mlp_arc_dimension=MLP_ARC_OUTPUT, mlp_label_dimension=MLP_LABEL_OUTPUT,
+                         n_labels=len(em.i2l.keys()),
                          word_embeddings=word_embeddings, pos_embeddings=pos_embeddings)
     model.train(True)
 
     parameters = model.parameters()
     optimizer = torch.optim.Adam(parameters, lr=LEARNING_RATE, weight_decay=1e-6, betas=(0.9, 0.9))
-    # scheduler = lr_scheduler.ReduceLROnPlateau(optimizer, patience=10, verbose=True)
+    scheduler = lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', patience=10, verbose=True)
 
-    continue_train = False
-    save_model = True
+    losses = {
+        'train': {
+            'min': {
+                'value': math.inf,
+                'epoch': 0
+            },
+            'history': []
+        },
+        'validate': {
+            'min': {
+                'value': math.inf,
+                'epoch': 0
+            },
+            'history': []
+        },
+    }
 
-    if continue_train:
-        model.load_state_dict(torch.load(LSTM_MODEL_WEIGHTS_RELATIVE_PATH))
-        optimizer.load_state_dict(torch.load(OPTIMISER_MODEL_RELATIVE_PATH))
+    if args.mode == 'resume':
+        checkpoint = torch.load(LATEST_CHECKPOINT_RELATIVE_PATH)
+        model.load_state_dict(checkpoint['model'])
+        optimizer.load_state_dict(checkpoint['optimizer'])
         model.word_embeddings.weight = nn.Parameter(
-            torch.from_numpy(np.array(torch.load(WORD_EMBEDDINGS_RELATIVE_PATH), dtype=np.float))).type(floatTensor)
+            torch.from_numpy(np.array(checkpoint['word_embeddings'], dtype=np.float))).type(floatTensor)
         model.pos_embeddings.weight = nn.Parameter(
-            torch.from_numpy(np.array(torch.load(POS_EMBEDDINGS_RELATIVE_PATH), dtype=np.float))).type(floatTensor)
+            torch.from_numpy(np.array(checkpoint['pos_embeddings'], dtype=np.float))).type(floatTensor)
+        losses = checkpoint['losses']
 
     loss_function = nn.CrossEntropyLoss()
     if torch.cuda.is_available():
         loss_function.cuda()
 
-    conllu_sentences = em.en_train_sentences()
+    if args.language == 'en':
+        conllu_sentences_train = em.en_train_sentences()[0:20]
+        conllu_sentences_dev = em.en_dev_sentences()
+    elif args.language == 'ro':
+        conllu_sentences_train = em.ro_train_sentences()
+        conllu_sentences_dev = em.ro_dev_sentences()
+    else:
+        raise ValueError('Specified language {} is not supported.'.format(args.language))
 
     for epoch in range(NUM_EPOCHS):
-        print("Epoch [%d/%d]\tLoss:" % (epoch + 1, NUM_EPOCHS), end="", flush=True)
-        epoch_loss = 0
-        for conllu_sentence in conllu_sentences:
-            sentence = conllu_sentence.get_word_list()
-            tags = conllu_sentence.get_pos_list()
-            labels = conllu_sentence.get_label_list()
-            head_representation = conllu_sentence.get_head_representation()
+        print("Epoch [%d/%d]..." % (epoch + 1, NUM_EPOCHS))
 
-            # Step 1. Remember that PyTorch accumulates gradients.
-            # We need to clear them out before each instance
-            optimizer.zero_grad()
+        is_best_model = False
 
-            # Also, we need to clear out the hidden state of the LSTM,
-            # detaching it from its history on the last instance.
-            model.hidden = model.init_hidden(len(sentence))
+        # train
+        train_loss, train_arc_scores, train_label_scores = train_model(model, optimizer, loss_function, conllu_sentences_train)
 
-            # Step 2. Get our inputs ready for the network, that is, turn them into
-            # Variables of word indices.
-            sentence_in = prepare_sequence(sentence, em.w2i)
-            post_tags_in = prepare_sequence(tags, em.t2i)
-            labels_in = prepare_sequence(labels, em.l2i)
+        # validate
+        validate_loss, validate_arc_scores, validate_label_scores = validate_model(model, loss_function, conllu_sentences_dev)
+        # check for best model
+        if train_loss < losses['train']['min']['value']:
+            print('Minimum training loss found in epoch {}: '.format(epoch+1, train_loss))
+            losses['train']['min']['value'] = train_loss
+            losses['train']['min']['epoch'] = epoch
+        if validate_loss < losses['validate']['min']['value']:
+            print('Minimum validation loss found in epoch {}: '.format(epoch+1, validate_loss))
+            losses['validate']['min']['value'] = validate_loss
+            losses['validate']['min']['epoch'] = epoch
+            is_best_model = True
 
-            # Step 3. Run our forward pass.
-            # arc_scores = model(sentence_in, post_tags_in, head_representation.tolist())
-            arc_scores, label_scores = model(sentence_in, post_tags_in, head_representation.tolist())
+        # track losses history
+        losses['train']['history'].append(train_loss)
+        losses['validate']['history'].append(validate_loss)
 
-            # Step 4. Compute the loss, gradients, and update the parameters by calling optimizer.step()
-            target_arcs = autograd.Variable(torch.from_numpy(np.array(head_representation, dtype=np.long))).type(longTensor)
-            loss_arcs = loss_function(arc_scores.permute(1, 0), target_arcs)
-            loss_labels = loss_function(label_scores, labels_in)
-            loss = loss_arcs + loss_labels
+        # always save latest checkpoint after an epoch, and flag if best checkpoint
+        save_checkpoint({
+            'epoch': epoch + 1,
+            'model': model.state_dict(),
+            'losses': losses,
+            'word_embeddings': model.word_embeddings.weight.data.numpy(),
+            'pos_embeddings': model.pos_embeddings.weight.data.numpy(),
+            'optimizer': optimizer.state_dict(),
+        }, is_best_model)
 
-            loss.backward()
-            optimizer.step()
+        if validate_loss > losses['validate']['min']['value'] and epoch - losses['validate']['min']['value'] > 20:
+            print('Twenty epochs with no improvement have passed. Stopping training...')
+            break
 
-            epoch_loss += loss.data[0]
-
-        epoch_loss /= len(conllu_sentences)
-        print(":%f" % epoch_loss)
+    print('Finished training at {}.'.format(time.strftime('%d-%m-%Y, %H:%M:%S')))
 
     # DEBUG
     # print([em.i2l[l] for l in np.argmax(nn.Softmax()(label_scores).data.numpy(), axis=1)])
@@ -238,9 +370,3 @@ if __name__ == '__main__':
     # plot_matrix(nn.Softmax()(label_scores))
     # plot_matrix(nn.Softmax()(arc_scores.permute(1, 0)).permute(1, 0))
 
-    if save_model:
-        model.cpu()
-        torch.save(optimizer.state_dict(), OPTIMISER_MODEL_RELATIVE_PATH)
-        torch.save(model.state_dict(), LSTM_MODEL_WEIGHTS_RELATIVE_PATH)
-        torch.save(model.word_embeddings.weight.numpy(), WORD_EMBEDDINGS_RELATIVE_PATH)
-        torch.save(model.pos_embeddings.weight.numpy(), POS_EMBEDDINGS_RELATIVE_PATH)
