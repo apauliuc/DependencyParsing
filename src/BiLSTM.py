@@ -124,14 +124,14 @@ class BiLSTMTagger(nn.Module):
             Ryi = L_head[tuple(heads), ]
         else:  # prediction time
             scores_data = scores.data.cpu().numpy()
-            root = np.argmax(scores_data[1, 1:])  # get the true root node
+            root = np.argmax(scores_data[0, 1:])  # get the true root node
             mst = ed.edmonds_list(cost_matrix=scores_data[1:, 1:], sentence=sentence[1:], root=root)
             heads = np.zeros(len(sentence), dtype=np.int)
             for pair in mst:
                 head = pair[0]
                 dep = pair[1]
                 # the first element should always point to zero because mst does not know about the root ROOT stuff
-                heads[dep + 1] = head
+                heads[dep + 1] = head + 1
             Ryi = L_head[tuple(heads.tolist()), ]
 
         first_term = self.label_bilinear(Ryi, L_dependent)
@@ -203,6 +203,7 @@ def train_model(model, optimizer, loss_function, conllu_sentences):
 
     train_loss /= len(conllu_sentences)
     print('Training loss: {}'.format(train_loss))
+    logging.info('Training loss: {}'.format(train_loss))
     return train_loss, arc_scores, label_scores
 
 
@@ -234,6 +235,7 @@ def validate_model(model, loss_function, conllu_sentences):
 
     validate_loss /= len(conllu_sentences)
     print("Validation loss: {}".format(validate_loss))
+    logging.info("Validation loss: {}".format(validate_loss))
     return validate_loss, arc_scores, label_scores
 
 
@@ -303,8 +305,8 @@ if __name__ == '__main__':
         loss_function.cuda()
 
     if args.language == 'en':
-        conllu_sentences_train = em.en_train_sentences()
-        conllu_sentences_dev = em.en_dev_sentences()[:500]
+        conllu_sentences_train = em.en_train_sentences()[19:20]
+        conllu_sentences_dev = em.en_train_sentences()[19:20]
     elif args.language == 'ro':
         conllu_sentences_train = em.ro_train_sentences()
         conllu_sentences_dev = em.ro_dev_sentences()
@@ -358,17 +360,20 @@ if __name__ == '__main__':
         if torch.cuda.is_available():
             model.cuda()
 
-        if validate_loss > losses['validate']['min']['value'] and epoch - losses['validate']['min']['value'] > 20:
-            print('Twenty epochs with no improvement have passed. Stopping training...')
-            logging.info('Twenty epochs with no improvement have passed. Stopping training...')
-
-            break
+        # if validate_loss > losses['validate']['min']['value'] and epoch - losses['validate']['min']['value'] > 30:
+        #     print('Thirty epochs with no improvement have passed. Stopping training...')
+        #     logging.info('Twenty epochs with no improvement have passed. Stopping training...')
+        #
+        #     break
 
     print('Finished training at {}.'.format(time.strftime('%d-%m-%Y, %H:%M:%S')))
     logging.info('Finished training at {}.'.format(time.strftime('%d-%m-%Y, %H:%M:%S')))
 
     # DEBUG
-    # print([em.i2l[l] for l in np.argmax(nn.Softmax()(label_scores).data.numpy(), axis=1)])
-    # print(labels)
-    # plot_matrix(nn.Softmax()(label_scores))
-    # plot_matrix(nn.Softmax()(arc_scores.permute(1, 0)).permute(1, 0))
+    print([em.i2l[l] for l in np.argmax(nn.Softmax()(train_label_scores).data.numpy(), axis=1)])
+    print([em.i2l[l] for l in np.argmax(nn.Softmax()(validate_label_scores).data.numpy(), axis=1)])
+    print(conllu_sentences_train[0].get_label_list())
+    plot_matrix(nn.Softmax()(train_label_scores))
+    plot_matrix(nn.Softmax()(validate_label_scores))
+    plot_matrix(nn.Softmax()(train_arc_scores.permute(1, 0)).permute(1, 0))
+    plot_matrix(nn.Softmax()(validate_arc_scores.permute(1, 0)).permute(1, 0))
