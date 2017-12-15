@@ -15,7 +15,7 @@ import edmonds as ed
 
 logging.basicConfig(filename='../resources/logs/training_{}.log'.format(time.strftime('%d-%m-%Y%_H:%M:%S')), level=logging.DEBUG)
 
-NUM_EPOCHS = 100
+NUM_EPOCHS = 50
 
 NUM_LAYERS = 3
 
@@ -94,10 +94,11 @@ class BiLSTMTagger(nn.Module):
         else:
             self.cpu()
 
-    def forward(self, sentence_word_indices, sentence_pos_indices, heads, sentence):
-        # heads means you are in training, sentence means you are in validation / prediction
-        if heads is None and sentence is None:
-            raise ValueError('Either heads or sentence needs to be provided.')
+    def forward(self, sentence_word_indices, sentence_pos_indices, mode, heads=None, sentence=None):
+        if (mode == 'train' or mode == 'validate') and heads is None:
+            raise ValueError('Train mode requires golden head representation')
+        if mode == 'predict' and sentence is None:
+            raise ValueError('Predict mode requires sentence')
 
         # get embeddings for sentence
         embedded_sentence = torch.cat(
@@ -120,19 +121,23 @@ class BiLSTMTagger(nn.Module):
         L_head = self.ReLU(self.mlp_label_head(R))
         L_dependent = self.ReLU(self.mlp_label_dependent(R))
 
-        if heads is not None:  # training time
+        if mode == 'train' or mode == 'validate':
             Ryi = L_head[tuple(heads), ]
-        else:  # prediction time
+        elif mode == 'predict':
             scores_data = scores.data.cpu().numpy()
             root = np.argmax(scores_data[0, 1:])  # get the true root node
             mst = ed.edmonds_list(cost_matrix=scores_data[1:, 1:], sentence=sentence[1:], root=root)
             heads = np.zeros(len(sentence), dtype=np.int)
+
+            heads[1] = root
             for pair in mst:
                 head = pair[0]
                 dep = pair[1]
                 # the first element should always point to zero because mst does not know about the root ROOT stuff
                 heads[dep + 1] = head + 1
             Ryi = L_head[tuple(heads.tolist()), ]
+        else:
+            raise ValueError('Unknown mode {}.'.format(mode))
 
         first_term = self.label_bilinear(Ryi, L_dependent)
         second_term = self.label_transform(torch.cat((Ryi, L_dependent), dim=1))
@@ -187,7 +192,11 @@ def train_model(model, optimizer, loss_function, conllu_sentences):
         labels_in = prepare_sequence(labels, em.l2i)
 
         # Step 3. Run our forward pass.
-        arc_scores, label_scores = model(sentence_in, post_tags_in, head_representation.tolist(), None)
+        arc_scores, label_scores = model(
+            sentence_word_indices=sentence_in,
+            sentence_pos_indices=post_tags_in,
+            heads=head_representation.tolist(),
+            mode='train')
 
         # Step 4. Compute the loss, gradients, and update the parameters by calling optimizer.step()
         target_arcs = autograd.Variable(torch.from_numpy(np.array(head_representation, dtype=np.long))).type(
@@ -222,7 +231,11 @@ def validate_model(model, loss_function, conllu_sentences):
         labels_in = prepare_sequence(labels, em.l2i)
 
         # Step 3. Run our forward pass.
-        arc_scores, label_scores = model(sentence_in, post_tags_in, None, sentence)
+        arc_scores, label_scores = model(
+            sentence_word_indices=sentence_in,
+            sentence_pos_indices=post_tags_in,
+            heads=head_representation.tolist(),
+            mode='validate')
 
         # Step 4. Compute the loss
         target_arcs = autograd.Variable(torch.from_numpy(np.array(head_representation, dtype=np.long))).type(
@@ -239,10 +252,46 @@ def validate_model(model, loss_function, conllu_sentences):
     return validate_loss, arc_scores, label_scores
 
 
+def test_model(model, loss_function, conllu_sentences):
+    prediction_loss = 0
+    for conllu_sentence in conllu_sentences:
+        sentence = conllu_sentence.get_word_list()
+        tags = conllu_sentence.get_pos_list()
+        labels = conllu_sentence.get_label_list()
+        head_representation = conllu_sentence.get_head_representation()
+
+        # Step 2. Get our inputs ready for the network, that is, turn them into
+        # Variables of word indices.
+        sentence_in = prepare_sequence(sentence, em.w2i)
+        post_tags_in = prepare_sequence(tags, em.t2i)
+        labels_in = prepare_sequence(labels, em.l2i)
+
+        # Step 3. Run our forward pass.
+        arc_scores, label_scores = model(
+            sentence_word_indices=sentence_in,
+            sentence_pos_indices=post_tags_in,
+            sentence=sentence,
+            mode='validate')
+
+        # Step 4. Compute the loss
+        target_arcs = autograd.Variable(torch.from_numpy(np.array(head_representation, dtype=np.long))).type(
+            longTensor)
+        loss_arcs = loss_function(arc_scores.permute(1, 0), target_arcs)
+        loss_labels = loss_function(label_scores, labels_in)
+        loss = loss_arcs + loss_labels
+
+        prediction_loss += loss.data[0]
+
+    prediction_loss /= len(conllu_sentences)
+    print("Prediction loss: {}".format(validate_loss))
+    logging.info("Prediction loss: {}".format(validate_loss))
+    return prediction_loss, arc_scores, label_scores
+
+
 if __name__ == '__main__':
     # parse command-line arguments
     parser = argparse.ArgumentParser(description='Start anew or resume training')
-    parser.add_argument('-m', '--mode', type=str, choices=['start', 'resume'], required=True, help='start from scratch or resume training: [start, resume]')
+    parser.add_argument('-m', '--mode', type=str, choices=['start', 'resume', 'test'], required=True, help='start from scratch or resume training: [start, resume]')
     parser.add_argument('-l', '--language', type=str, choices=['en', 'ro'], required=True, help='which language to model: [en, ro]')
     args = parser.parse_args()
 
@@ -271,7 +320,7 @@ if __name__ == '__main__':
 
     parameters = model.parameters()
     optimizer = torch.optim.Adam(parameters, lr=LEARNING_RATE, weight_decay=1e-6, betas=(0.9, 0.9))
-    scheduler = lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', patience=10, verbose=True)
+    scheduler = lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', patience=5, verbose=True)
 
     losses = {
         'train': {
@@ -299,81 +348,97 @@ if __name__ == '__main__':
         model.pos_embeddings.weight = nn.Parameter(
             torch.from_numpy(np.array(checkpoint['pos_embeddings'], dtype=np.float))).type(floatTensor)
         losses = checkpoint['losses']
+    elif args.mode == 'test':
+        checkpoint = torch.load(BEST_CHECKPOINT_RELATIVE_PATH)
+        model.load_state_dict(checkpoint['model'])
+        optimizer.load_state_dict(checkpoint['optimizer'])
+        model.word_embeddings.weight = nn.Parameter(
+            torch.from_numpy(np.array(checkpoint['word_embeddings'], dtype=np.float))).type(floatTensor)
+        model.pos_embeddings.weight = nn.Parameter(
+            torch.from_numpy(np.array(checkpoint['pos_embeddings'], dtype=np.float))).type(floatTensor)
+        losses = checkpoint['losses']
 
     loss_function = nn.CrossEntropyLoss()
     if torch.cuda.is_available():
         loss_function.cuda()
 
     if args.language == 'en':
-        conllu_sentences_train = em.en_train_sentences()[19:20]
-        conllu_sentences_dev = em.en_train_sentences()[19:20]
+        conllu_sentences_train = em.en_train_sentences()
+        conllu_sentences_dev = em.en_dev_sentences()
+        conllu_sentences_test = em.en_test_sentences()
     elif args.language == 'ro':
         conllu_sentences_train = em.ro_train_sentences()
         conllu_sentences_dev = em.ro_dev_sentences()
+        conllu_sentences_test = em.ro_test_sentences()
     else:
         raise ValueError('Specified language {} is not supported.'.format(args.language))
 
-    for epoch in range(NUM_EPOCHS):
-        print("Epoch [%d/%d]..." % (epoch + 1, NUM_EPOCHS))
-        logging.info("Epoch [%d/%d]..." % (epoch + 1, NUM_EPOCHS))
+    if args.mode == 'start' or args.mode == 'resume':
+        for epoch in range(NUM_EPOCHS):
+            print("Epoch [%d/%d]..." % (epoch + 1, NUM_EPOCHS))
+            logging.info("Epoch [%d/%d]..." % (epoch + 1, NUM_EPOCHS))
 
-        is_best_model = False
+            is_best_model = False
 
-        # train
-        train_loss, train_arc_scores, train_label_scores = train_model(model, optimizer, loss_function, conllu_sentences_train)
+            # train
+            train_loss, train_arc_scores, train_label_scores = train_model(model, optimizer, loss_function, conllu_sentences_train)
 
-        # validate
-        validate_loss, validate_arc_scores, validate_label_scores = validate_model(model, loss_function, conllu_sentences_dev)
-        # check for best model
-        if train_loss < losses['train']['min']['value']:
-            print('Minimum training loss found in epoch {}'.format(epoch+1))
-            logging.info('Minimum training loss found in epoch {}'.format(epoch + 1))
+            # validate
+            validate_loss, validate_arc_scores, validate_label_scores = validate_model(model, loss_function, conllu_sentences_dev)
+            # check for best model
+            if train_loss < losses['train']['min']['value']:
+                print('Minimum training loss found in epoch {}'.format(epoch+1))
+                logging.info('Minimum training loss found in epoch {}'.format(epoch + 1))
 
-            losses['train']['min']['value'] = train_loss
-            losses['train']['min']['epoch'] = epoch
-        if validate_loss < losses['validate']['min']['value']:
-            print('Minimum validation loss found in epoch {}'.format(epoch+1))
-            logging.info('Minimum validation loss found in epoch {}'.format(epoch + 1))
+                losses['train']['min']['value'] = train_loss
+                losses['train']['min']['epoch'] = epoch
+            if validate_loss < losses['validate']['min']['value']:
+                print('Minimum validation loss found in epoch {}'.format(epoch+1))
+                logging.info('Minimum validation loss found in epoch {}'.format(epoch + 1))
 
-            losses['validate']['min']['value'] = validate_loss
-            losses['validate']['min']['epoch'] = epoch
-            is_best_model = True
+                losses['validate']['min']['value'] = validate_loss
+                losses['validate']['min']['epoch'] = epoch
+                is_best_model = True
 
-        # track loss and adjust learning rate if necessary
-        scheduler.step(validate_loss)
+            # track loss and adjust learning rate if necessary
+            scheduler.step(validate_loss)
 
-        # track losses history
-        losses['train']['history'].append(train_loss)
-        losses['validate']['history'].append(validate_loss)
+            # track losses history
+            losses['train']['history'].append(train_loss)
+            losses['validate']['history'].append(validate_loss)
 
-        model.cpu()
-        # always save latest checkpoint after an epoch, and flag if best checkpoint
-        save_checkpoint({
-            'epoch': epoch + 1,
-            'model': model.state_dict(),
-            'losses': losses,
-            'word_embeddings': model.word_embeddings.weight.data.numpy(),
-            'pos_embeddings': model.pos_embeddings.weight.data.numpy(),
-            'optimizer': optimizer.state_dict(),
-        }, is_best_model)
+            model.cpu()
+            # always save latest checkpoint after an epoch, and flag if best checkpoint
+            save_checkpoint({
+                'epoch': epoch + 1,
+                'model': model.state_dict(),
+                'losses': losses,
+                'word_embeddings': model.word_embeddings.weight.data.numpy(),
+                'pos_embeddings': model.pos_embeddings.weight.data.numpy(),
+                'optimizer': optimizer.state_dict(),
+            }, is_best_model)
 
-        if torch.cuda.is_available():
-            model.cuda()
+            if torch.cuda.is_available():
+                model.cuda()
 
-        # if validate_loss > losses['validate']['min']['value'] and epoch - losses['validate']['min']['value'] > 30:
-        #     print('Thirty epochs with no improvement have passed. Stopping training...')
-        #     logging.info('Twenty epochs with no improvement have passed. Stopping training...')
-        #
-        #     break
+            if validate_loss > losses['validate']['min']['value'] and epoch - losses['validate']['min']['epoch'] > 10:
+                print('Ten epochs with no improvement have passed. Stopping training...')
+                logging.info('Ten epochs with no improvement have passed. Stopping training...')
 
-    print('Finished training at {}.'.format(time.strftime('%d-%m-%Y, %H:%M:%S')))
-    logging.info('Finished training at {}.'.format(time.strftime('%d-%m-%Y, %H:%M:%S')))
+                break
+
+        print('Finished training at {}.'.format(time.strftime('%d-%m-%Y, %H:%M:%S')))
+        logging.info('Finished training at {}.'.format(time.strftime('%d-%m-%Y, %H:%M:%S')))
+    elif args.mode == 'test':
+        test_loss, validate_arc_scores, validate_label_scores = test_model(model, loss_function, conllu_sentences_test)
+        print(test_loss)
+        # TODO: do some more stuff here probably
 
     # DEBUG
-    print([em.i2l[l] for l in np.argmax(nn.Softmax()(train_label_scores).data.numpy(), axis=1)])
-    print([em.i2l[l] for l in np.argmax(nn.Softmax()(validate_label_scores).data.numpy(), axis=1)])
-    print(conllu_sentences_train[0].get_label_list())
-    plot_matrix(nn.Softmax()(train_label_scores))
-    plot_matrix(nn.Softmax()(validate_label_scores))
-    plot_matrix(nn.Softmax()(train_arc_scores.permute(1, 0)).permute(1, 0))
-    plot_matrix(nn.Softmax()(validate_arc_scores.permute(1, 0)).permute(1, 0))
+    # print([em.i2l[l] for l in np.argmax(nn.Softmax()(train_label_scores).data.numpy(), axis=1)])
+    # print([em.i2l[l] for l in np.argmax(nn.Softmax()(validate_label_scores).data.numpy(), axis=1)])
+    # print(conllu_sentences_train.get_label_list())
+    # plot_matrix(nn.Softmax()(train_label_scores))
+    # plot_matrix(nn.Softmax()(validate_label_scores))
+    # plot_matrix(nn.Softmax()(train_arc_scores.permute(1, 0)).permute(1, 0))
+    # plot_matrix(nn.Softmax()(validate_arc_scores.permute(1, 0)).permute(1, 0))
