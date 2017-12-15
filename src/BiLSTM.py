@@ -303,8 +303,8 @@ if __name__ == '__main__':
         loss_function.cuda()
 
     if args.language == 'en':
-        conllu_sentences_train = em.en_train_sentences()[:50]
-        conllu_sentences_dev = em.en_dev_sentences()[:100]
+        conllu_sentences_train = em.en_train_sentences()
+        conllu_sentences_dev = em.en_dev_sentences()[:500]
     elif args.language == 'ro':
         conllu_sentences_train = em.ro_train_sentences()
         conllu_sentences_dev = em.ro_dev_sentences()
