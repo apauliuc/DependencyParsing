@@ -232,7 +232,7 @@ def validate_model(model, loss_function, conllu_sentences):
 
         validate_loss += loss.data[0]
 
-    validate_loss /= len(conllu_sentences[0:20])
+    validate_loss /= len(conllu_sentences)
     print("Validation loss: {}".format(validate_loss))
     return validate_loss, arc_scores, label_scores
 
