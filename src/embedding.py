@@ -5,7 +5,6 @@ from sklearn.manifold import TSNE
 from bokeh.models import ColumnDataSource, LabelSet
 from bokeh.plotting import figure, show, output_file
 from bokeh.palettes import d3
-from bokeh.io import output_notebook
 
 from sentence import Sentence
 from word import Word
@@ -138,7 +137,6 @@ def get_gensim_sentences(sentences):
         for word in sentence.words:
             gensim_word_sentence.append(word.FORM.lower())
             word_counts[word.FORM.lower()] += 1
-
             gensim_POS_sentence.append(word.UPOSTAG.lower())
             POS_counts[word.UPOSTAG.lower()] += 1
 
@@ -161,7 +159,7 @@ def get_gensim_sentences(sentences):
 
 # def write_all_our_words():
 #     unknown_representation = []
-#     with open("../resources//glove50d_word.txt", 'w') as file:
+#     with open("../resources//embedding50d_word.txt", 'w') as file:
 #         for w in word_vocabulary:
 #             if w in all_pre_trained_words:
 #                 file.write(w + " ")
@@ -182,11 +180,8 @@ def get_random_representation(length=50):
     return [random.random() for _ in range(0, length)]
 
 
-def get_glove_pre_trained_tag_model():
-    """
-    PLOT TWIST: We get the pos_tag embeddings from training a gensim model.
-    """
-    file = open("../resources/embeddings/gensim50d_pos.txt", "r", encoding="utf-8")
+def get_pre_trained_tag_model(language):
+    file = open("../resources/embeddings/%s/embedding50d_pos.txt" % language, "r", encoding="utf-8")
 
     pre_trained_pos_tags = {}
     for line in file:
@@ -199,8 +194,8 @@ def get_glove_pre_trained_tag_model():
     return defaultdict(lambda: unknown_representation, pre_trained_pos_tags)
 
 
-def get_glove_pre_trained_word_model():
-    file = open("../resources/embeddings/glove50d_word.txt", "r", encoding="utf-8")
+def get_pre_trained_word_model(language):
+    file = open("../resources/embeddings/%s/embedding50d_word.txt" % language, "r", encoding="utf-8")
     pre_trained_tokens = {}
     for line in file:
         tokens = line.split()
@@ -216,55 +211,88 @@ gensim_word_sentences_train, word_counts_train, gensim_POS_sentences_train, POS_
 gensim_word_sentences_dev, word_counts_dev, gensim_POS_sentences_dev, POS_counts_dev, label_counts_dev = get_gensim_sentences(en_dev_sentences())
 gensim_word_sentences_test, word_counts_test, gensim_POS_sentences_test, POS_counts_test, label_counts_test = get_gensim_sentences(en_test_sentences())
 
-# all_pre_trained_word_embeddings = get_all_pre_trained_word_embeddings()
-# all_pre_trained_words = all_pre_trained_word_embeddings.keys()
+ro_gensim_word_sentences_train, ro_word_counts_train, ro_gensim_POS_sentences_train, ro_POS_counts_train, ro_label_counts_train = get_gensim_sentences(ro_train_sentences())
+ro_gensim_word_sentences_dev, ro_word_counts_dev, ro_gensim_POS_sentences_dev, ro_POS_counts_dev, ro_label_counts_dev = get_gensim_sentences(ro_dev_sentences())
+ro_gensim_word_sentences_test, ro_word_counts_test, ro_gensim_POS_sentences_test, ro_POS_counts_test, ro_label_counts_test = get_gensim_sentences(ro_test_sentences())
 
-pre_trained_word_model = get_glove_pre_trained_word_model()
-pre_trained_POS_model = get_glove_pre_trained_tag_model()
+pre_trained_word_model = get_pre_trained_word_model("en")
+pre_trained_POS_model = get_pre_trained_tag_model("en")
 
-w2i = defaultdict(lambda: len(w2i))
-i2w = dict()
-i2w[w2i[UNKNOWN_WORD]] = UNKNOWN_WORD  # word with index 0 are the words that are unknown.
+ro_pre_trained_word_model = get_pre_trained_word_model("ro")
+ro_pre_trained_POS_model = get_pre_trained_tag_model("ro")
+
+w2i = {}
+t2i = {}
+l2i = {}
+i2w = {}
+i2t = {}
+i2l = {}
+
+w2i["en"] = defaultdict(lambda: len(w2i["en"]))
+i2w["en"] = dict()
+i2w["en"][w2i["en"][UNKNOWN_WORD]] = UNKNOWN_WORD  # word with index 0 are the words that are unknown.
 word_vocabulary = pre_trained_word_model.keys()
 for word in word_vocabulary:
-    i2w[w2i[word]] = word  # trick
-w2i = defaultdict(lambda: 0, w2i)  # change the default behaviour so that it returns the index of unknown words(i.e. 0 )
+    i2w["en"][w2i["en"][word]] = word  # trick
+w2i["en"] = defaultdict(lambda: 0, w2i["en"])  # change the default behaviour so that it returns the index of unknown words(i.e. 0 )
 
-t2i = defaultdict(lambda: len(t2i))
-i2t = dict()
-i2t[t2i[UNKNOWN_TAG]] = UNKNOWN_TAG  # tags with index 0 are the tags that are unknown.
+# FOR ROMANIAN
+w2i["ro"] = defaultdict(lambda: len(w2i["ro"]))
+i2w["ro"] = dict()
+i2w["ro"][w2i["ro"][UNKNOWN_WORD]] = UNKNOWN_WORD  # word with index 0 are the words that are unknown.
+word_vocabulary = ro_pre_trained_word_model.keys()
+for word in word_vocabulary:
+    i2w["ro"][w2i["ro"][word]] = word  # trick
+w2i["ro"] = defaultdict(lambda: 0, w2i["ro"])  # change the default behaviour so that it returns the index of unknown words(i.e. 0 )
+
+t2i["en"] = defaultdict(lambda: len(t2i["en"]))
+i2t["en"] = dict()
+i2t["en"][t2i["en"][UNKNOWN_TAG]] = UNKNOWN_TAG  # tags with index 0 are the tags that are unknown.
 pos_tag_vocabulary = pre_trained_POS_model.keys()
 for tag in pos_tag_vocabulary:
-    i2t[t2i[tag]] = tag  # trick
-t2i = defaultdict(lambda: 0, t2i)  # change the default behaviour so that it returns the index of unknown tags(i.e. 0 )
+    i2t["en"][t2i["en"][tag]] = tag  # trick
+t2i["en"] = defaultdict(lambda: 0, t2i["en"])  # change the default behaviour so that it returns the index of unknown tags(i.e. 0 )
 
-l2i = defaultdict(lambda: len(l2i))
-i2l = dict()
+# FOR ROMANIAN
+t2i["ro"] = defaultdict(lambda: len(t2i["ro"]))
+i2t["ro"] = dict()
+i2t["ro"][t2i["ro"][UNKNOWN_TAG]] = UNKNOWN_TAG  # tags with index 0 are the tags that are unknown.
+ro_pos_tag_vocabulary = ro_pre_trained_POS_model.keys()
+for tag in ro_pos_tag_vocabulary:
+    i2t["ro"][t2i["ro"][tag]] = tag  # trick
+t2i["ro"] = defaultdict(lambda: 0, t2i["ro"])  # change the default behaviour so that it returns the index of unknown tags(i.e. 0 )
+
+l2i["en"] = defaultdict(lambda: len(l2i["en"]))
+i2l["en"] = dict()
 label_vocabulary = label_counts_train.keys()
 for label in label_vocabulary:
-    i2l[l2i[label]] = label  # trick
-l2i = dict(l2i)  # remove the default behaviour
+    i2l["en"][l2i["en"][label]] = label  # trick
+l2i["en"] = dict(l2i["en"])  # remove the default behaviour
+l2i["ro"] = l2i["en"]
+i2l["ro"] = i2l["en"]
 
 
-def word_embeddings():
-    glove_pre_trained_word_model = get_glove_pre_trained_word_model()
+def word_embeddings(language):
+    glove_pre_trained_word_model = get_pre_trained_word_model(language)
     embeddings = []
-    indices = len(i2w.keys())
+    indices = len(i2w[language].keys())
     for index in range(0, indices):
-        embeddings.append(glove_pre_trained_word_model[i2w[index]])
+        embeddings.append(glove_pre_trained_word_model[i2w[language][index]])
     return embeddings
 
 
-def tag_embeddings():
-    glove_pre_trained_pos_model = get_glove_pre_trained_tag_model()
+def tag_embeddings(language):
+    glove_pre_trained_pos_model = get_pre_trained_tag_model(language)
     embeddings = []
-    indices = len(i2t.keys())
+    indices = len(i2t[language].keys())
     for index in range(0, indices):
-        embeddings.append(glove_pre_trained_pos_model[i2t[index]])
+        embeddings.append(glove_pre_trained_pos_model[i2t[language][index]])
     return embeddings
 
 
 if __name__ == '__main__':
+
+    print("aici")
     '''
     
     # models that have a default behaviour and return a representation for unknown words.

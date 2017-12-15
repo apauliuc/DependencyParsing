@@ -168,7 +168,7 @@ def save_checkpoint(checkpoint, best):
         shutil.copyfile(LATEST_CHECKPOINT_RELATIVE_PATH, BEST_CHECKPOINT_RELATIVE_PATH)
 
 
-def train_model(model, optimizer, loss_function, conllu_sentences):
+def train_model(model, optimizer, loss_function, conllu_sentences, language):
     train_loss = 0
     for conllu_sentence in conllu_sentences:
         sentence = conllu_sentence.get_word_list()
@@ -182,9 +182,9 @@ def train_model(model, optimizer, loss_function, conllu_sentences):
 
         # Step 2. Get our inputs ready for the network, that is, turn them into
         # Variables of word indices.
-        sentence_in = prepare_sequence(sentence, em.w2i)
-        post_tags_in = prepare_sequence(tags, em.t2i)
-        labels_in = prepare_sequence(labels, em.l2i)
+        sentence_in = prepare_sequence(sentence, em.w2i[language])
+        post_tags_in = prepare_sequence(tags, em.t2i[language])
+        labels_in = prepare_sequence(labels, em.l2i[language])
 
         # Step 3. Run our forward pass.
         arc_scores, label_scores = model(sentence_in, post_tags_in, head_representation.tolist(), None)
@@ -207,7 +207,7 @@ def train_model(model, optimizer, loss_function, conllu_sentences):
     return train_loss, arc_scores, label_scores
 
 
-def validate_model(model, loss_function, conllu_sentences):
+def validate_model(model, loss_function, conllu_sentences, language):
     validate_loss = 0
     for conllu_sentence in conllu_sentences:
         sentence = conllu_sentence.get_word_list()
@@ -217,9 +217,9 @@ def validate_model(model, loss_function, conllu_sentences):
 
         # Step 2. Get our inputs ready for the network, that is, turn them into
         # Variables of word indices.
-        sentence_in = prepare_sequence(sentence, em.w2i)
-        post_tags_in = prepare_sequence(tags, em.t2i)
-        labels_in = prepare_sequence(labels, em.l2i)
+        sentence_in = prepare_sequence(sentence, em.w2i[language])
+        post_tags_in = prepare_sequence(tags, em.t2i[language])
+        labels_in = prepare_sequence(labels, em.l2i[language])
 
         # Step 3. Run our forward pass.
         arc_scores, label_scores = model(sentence_in, post_tags_in, None, sentence)
@@ -258,14 +258,14 @@ if __name__ == '__main__':
     global BEST_CHECKPOINT_RELATIVE_PATH
     BEST_CHECKPOINT_RELATIVE_PATH = '../resources/checkpoints/{}/best_checkpoint.tar'.format(args.language)
 
-    word_embeddings = autograd.Variable(torch.from_numpy(np.array(em.word_embeddings(), dtype=np.float))).type(
+    word_embeddings = autograd.Variable(torch.from_numpy(np.array(em.word_embeddings(args.language), dtype=np.float))).type(
         floatTensor)
-    pos_embeddings = autograd.Variable(torch.from_numpy(np.array(em.tag_embeddings(), dtype=np.float))).type(
+    pos_embeddings = autograd.Variable(torch.from_numpy(np.array(em.tag_embeddings(args.language), dtype=np.float))).type(
         floatTensor)
 
     model = BiLSTMTagger(input_size=INPUT_SIZE, hidden_dim=HIDDEN_DIMENSION, num_layers=NUM_LAYERS,
                          mlp_arc_dimension=MLP_ARC_OUTPUT, mlp_label_dimension=MLP_LABEL_OUTPUT,
-                         n_labels=len(em.i2l.keys()),
+                         n_labels=len(em.i2l[args.language].keys()),
                          word_embeddings=word_embeddings, pos_embeddings=pos_embeddings)
     model.train(True)
 
@@ -308,8 +308,8 @@ if __name__ == '__main__':
         conllu_sentences_train = em.en_train_sentences()[19:20]
         conllu_sentences_dev = em.en_train_sentences()[19:20]
     elif args.language == 'ro':
-        conllu_sentences_train = em.ro_train_sentences()
-        conllu_sentences_dev = em.ro_dev_sentences()
+        conllu_sentences_train = em.ro_train_sentences()[19:20]
+        conllu_sentences_dev = em.ro_dev_sentences()[19:20]
     else:
         raise ValueError('Specified language {} is not supported.'.format(args.language))
 
@@ -320,10 +320,10 @@ if __name__ == '__main__':
         is_best_model = False
 
         # train
-        train_loss, train_arc_scores, train_label_scores = train_model(model, optimizer, loss_function, conllu_sentences_train)
+        train_loss, train_arc_scores, train_label_scores = train_model(model, optimizer, loss_function, conllu_sentences_train, args.language)
 
         # validate
-        validate_loss, validate_arc_scores, validate_label_scores = validate_model(model, loss_function, conllu_sentences_dev)
+        validate_loss, validate_arc_scores, validate_label_scores = validate_model(model, loss_function, conllu_sentences_dev, args.language)
         # check for best model
         if train_loss < losses['train']['min']['value']:
             print('Minimum training loss found in epoch {}'.format(epoch+1))
@@ -370,8 +370,8 @@ if __name__ == '__main__':
     logging.info('Finished training at {}.'.format(time.strftime('%d-%m-%Y, %H:%M:%S')))
 
     # DEBUG
-    print([em.i2l[l] for l in np.argmax(nn.Softmax()(train_label_scores).data.numpy(), axis=1)])
-    print([em.i2l[l] for l in np.argmax(nn.Softmax()(validate_label_scores).data.numpy(), axis=1)])
+    print([em.i2l[args.language][l] for l in np.argmax(nn.Softmax()(train_label_scores).data.numpy(), axis=1)])
+    print([em.i2l[args.language][l] for l in np.argmax(nn.Softmax()(validate_label_scores).data.numpy(), axis=1)])
     print(conllu_sentences_train[0].get_label_list())
     plot_matrix(nn.Softmax()(train_label_scores))
     plot_matrix(nn.Softmax()(validate_label_scores))
