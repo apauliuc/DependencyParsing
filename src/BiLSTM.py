@@ -8,9 +8,12 @@ import math
 import shutil
 import time
 import argparse
+import logging
 
 import embedding as em
 import edmonds as ed
+
+logging.basicConfig(filename='../resources/logs/training_{}.log'.format(time.strftime('%d-%m-%Y%_H:%M:%S')), level=logging.DEBUG)
 
 NUM_EPOCHS = 150
 
@@ -260,8 +263,10 @@ if __name__ == '__main__':
 
     if args.mode == 'start':
         print('Started training at {}.'.format(time.strftime('%d-%m-%Y, %H:%M:%S')))
+        logging.info('Started training at {}.'.format(time.strftime('%d-%m-%Y, %H:%M:%S')))
     elif args.mode == 'resume':
         print('Resumed training at {}.'.format(time.strftime('%d-%m-%Y, %H:%M:%S')))
+        logging.info('Resumed training at {}.'.format(time.strftime('%d-%m-%Y, %H:%M:%S')))
 
     global LATEST_CHECKPOINT_RELATIVE_PATH
     LATEST_CHECKPOINT_RELATIVE_PATH = '../resources/checkpoints/{}/latest_checkpoint.tar'.format(args.language)
@@ -315,8 +320,8 @@ if __name__ == '__main__':
         loss_function.cuda()
 
     if args.language == 'en':
-        conllu_sentences_train = em.en_train_sentences()[0:20]
-        conllu_sentences_dev = em.en_dev_sentences()
+        conllu_sentences_train = em.en_train_sentences()[0:50]
+        conllu_sentences_dev = em.en_dev_sentences()[0:20]
     elif args.language == 'ro':
         conllu_sentences_train = em.ro_train_sentences()
         conllu_sentences_dev = em.ro_dev_sentences()
@@ -325,6 +330,7 @@ if __name__ == '__main__':
 
     for epoch in range(NUM_EPOCHS):
         print("Epoch [%d/%d]..." % (epoch + 1, NUM_EPOCHS))
+        logging.info("Epoch [%d/%d]..." % (epoch + 1, NUM_EPOCHS))
 
         is_best_model = False
 
@@ -335,14 +341,21 @@ if __name__ == '__main__':
         validate_loss, validate_arc_scores, validate_label_scores = validate_model(model, loss_function, conllu_sentences_dev)
         # check for best model
         if train_loss < losses['train']['min']['value']:
-            print('Minimum training loss found in epoch {}: '.format(epoch+1, train_loss))
+            print('Minimum training loss found in epoch {}'.format(epoch+1))
+            logging.info('Minimum training loss found in epoch {}'.format(epoch + 1))
+
             losses['train']['min']['value'] = train_loss
             losses['train']['min']['epoch'] = epoch
         if validate_loss < losses['validate']['min']['value']:
-            print('Minimum validation loss found in epoch {}: '.format(epoch+1, validate_loss))
+            print('Minimum validation loss found in epoch {}'.format(epoch+1))
+            logging.info('Minimum validation loss found in epoch {}'.format(epoch + 1))
+
             losses['validate']['min']['value'] = validate_loss
             losses['validate']['min']['epoch'] = epoch
             is_best_model = True
+
+        # track loss and adjust learning rate if necessary
+        scheduler.step(validate_loss)
 
         # track losses history
         losses['train']['history'].append(train_loss)
@@ -360,9 +373,12 @@ if __name__ == '__main__':
 
         if validate_loss > losses['validate']['min']['value'] and epoch - losses['validate']['min']['value'] > 20:
             print('Twenty epochs with no improvement have passed. Stopping training...')
+            logging.info('Twenty epochs with no improvement have passed. Stopping training...')
+
             break
 
     print('Finished training at {}.'.format(time.strftime('%d-%m-%Y, %H:%M:%S')))
+    logging.info('Finished training at {}.'.format(time.strftime('%d-%m-%Y, %H:%M:%S')))
 
     # DEBUG
     # print([em.i2l[l] for l in np.argmax(nn.Softmax()(label_scores).data.numpy(), axis=1)])
