@@ -120,6 +120,7 @@ def prepare(G, root=0):
     with weight equal to the maximum of the weights of these parallel edges.
     """
     G_new = nx.DiGraph()
+    G_new.add_nodes_from(G.nodes(data=True))
     dictionary = defaultdict(lambda: -np.inf)
     for edge in G.edges:
         if edge[1] != root and edge[0] != edge[1]:
@@ -141,7 +142,7 @@ def greedy(G, root=0):
         if node != root:
             max_edge = maximum_incoming_edge(G, node)
             P.add_edge(max_edge[0], max_edge[1], weight=G.get_edge_data(max_edge[0], max_edge[1])['weight'])
-    P.add_nodes_from(G.nodes)
+    P.add_nodes_from(G.nodes(data=True))
     return P
 
 
@@ -153,6 +154,7 @@ def cleanup(G, root=0):
     This function also returns a ductionary that is used to reconstrcut the initial weights.
     """
     G_cleaned = nx.DiGraph()
+    G_cleaned.add_nodes_from(G.nodes(data=True))
     dictionary = {}
     for node in G.nodes:
         if node != root:
@@ -174,6 +176,7 @@ def uncleanup(G, dictionary_cleanup, root=0):
     See: cleanup(G,root=0)
     """
     G_uncleaned = nx.DiGraph()
+    G_uncleaned.add_nodes_from(G.nodes(data=True))
     for i, j in G.edges:
         if j != root:
             G_uncleaned.add_edge(i, j, weight=G.get_edge_data(i, j)['weight'] + dictionary_cleanup[j])
@@ -182,7 +185,7 @@ def uncleanup(G, dictionary_cleanup, root=0):
 
 def contract(G, C, root=0, step=0):
     """
-    This function contracts a cycle into a single node and returns the newly created crap as well as a dictionary
+    This function contracts a cycle into a single node and returns the newly created graph as well as a dictionary
     later used by 'expand()' method to reconstruct the graph.
     :param G: a networkx Graph
     :param C: list of edges that make a cycle in graph G
@@ -202,12 +205,14 @@ def contract(G, C, root=0, step=0):
             if add_dictionary[(i, new_node)] < G.get_edge_data(i, j)['weight']:
                 add_dictionary[(i, new_node)] = G.get_edge_data(i, j)['weight']
                 restore_dictionary[(i, new_node)] = (i, j, G.get_edge_data(i, j)['weight'])
+                restore_dictionary[j] = G.nodes[j]['word']
             continue
 
         if i in nodes and j not in nodes:
             if add_dictionary[(new_node, j)] < G.get_edge_data(i, j)['weight']:
                 add_dictionary[(new_node, j)] = G.get_edge_data(i, j)['weight']
                 restore_dictionary[(new_node, j)] = (i, j, G.get_edge_data(i, j)['weight'])
+                restore_dictionary[i] = G.nodes[i]['word']
             continue
 
         if i not in nodes and j not in nodes:
@@ -216,10 +221,20 @@ def contract(G, C, root=0, step=0):
 
         if i in nodes and j in nodes:
             restore_dictionary[(i, j)] = (i, j, G.get_edge_data(i, j)['weight'])
+            restore_dictionary[i] = G.nodes[i]['word']
+            restore_dictionary[j] = G.nodes[j]['word']
             continue
 
     for key in add_dictionary.keys():
         G_contracted.add_edge(key[0], key[1], weight=add_dictionary[key])
+        if key[0] != new_node:
+            G_contracted.nodes[key[0]]['word'] = G.nodes[key[0]]['word']
+        else:
+            G_contracted.nodes[key[0]]['word'] = "random"
+        if key[1] != new_node:
+            G_contracted.nodes[key[1]]['word'] = G.nodes[key[1]]['word']
+        else:
+            G_contracted.nodes[key[1]]['word'] = "random"
 
     return G_contracted, restore_dictionary
 
@@ -237,6 +252,8 @@ def expand(T_contracted, C, restore_dictionary, root=0, step=0):
     new_node = "new_" + str(step)
     nodes = get_nodes(C)
     G_expanded = nx.DiGraph()
+    G_expanded.add_nodes_from(T_contracted.nodes(data=True))
+    G_expanded.remove_node(new_node)
     edge_to_remove = None
     for i, j in T_contracted.edges:
         if i not in nodes and j not in nodes and i != new_node and j != new_node:
@@ -260,6 +277,8 @@ def expand(T_contracted, C, restore_dictionary, root=0, step=0):
     for i, j, _ in C:
         if (i, j) != edge_to_remove:
             G_expanded.add_edge(i, j, weight=restore_dictionary[(i, j)][2])
+            G_expanded.nodes[i]['word'] = restore_dictionary[i]
+            G_expanded.nodes[j]['word'] = restore_dictionary[j]
 
     return G_expanded
 
