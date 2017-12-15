@@ -123,6 +123,7 @@ class BiLSTMTagger(nn.Module):
         if heads is not None:  # training time
             Ryi = L_head[tuple(heads), ]
         else:  # prediction time
+            scores.cpu()
             root = np.argmax(scores.data.numpy()[1, 1:])  # get the true root node
             mst = ed.edmonds_list(cost_matrix=scores.data.numpy()[1:, 1:], sentence=sentence[1:], root=root)
             heads = np.zeros(len(sentence), dtype=np.int)
@@ -137,6 +138,8 @@ class BiLSTMTagger(nn.Module):
         second_term = self.label_transform(torch.cat((Ryi, L_dependent), dim=1))
 
         label_scores = first_term + second_term
+
+        scores.type(floatTensor)
 
         return scores, label_scores
 
