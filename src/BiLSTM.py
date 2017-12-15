@@ -304,7 +304,7 @@ if __name__ == '__main__':
 
     if args.language == 'en':
         conllu_sentences_train = em.en_train_sentences()[:50]
-        conllu_sentences_dev = em.en_dev_sentences()
+        conllu_sentences_dev = em.en_dev_sentences()[:100]
     elif args.language == 'ro':
         conllu_sentences_train = em.ro_train_sentences()
         conllu_sentences_dev = em.ro_dev_sentences()
@@ -344,6 +344,7 @@ if __name__ == '__main__':
         losses['train']['history'].append(train_loss)
         losses['validate']['history'].append(validate_loss)
 
+        model.cpu()
         # always save latest checkpoint after an epoch, and flag if best checkpoint
         save_checkpoint({
             'epoch': epoch + 1,
@@ -353,6 +354,9 @@ if __name__ == '__main__':
             'pos_embeddings': model.pos_embeddings.weight.data.numpy(),
             'optimizer': optimizer.state_dict(),
         }, is_best_model)
+
+        if torch.cuda.is_available():
+            model.cuda()
 
         if validate_loss > losses['validate']['min']['value'] and epoch - losses['validate']['min']['value'] > 20:
             print('Twenty epochs with no improvement have passed. Stopping training...')
