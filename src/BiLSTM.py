@@ -98,7 +98,7 @@ class BiLSTMTagger(nn.Module):
     def forward(self, sentence_word_indices, sentence_pos_indices, mode, heads=None, sentence=None):
         if (mode == 'train' or mode == 'validate') and heads is None:
             raise ValueError('Train mode requires golden head representation')
-        if mode == 'predict' and sentence is None:
+        if (mode == 'predict' or mode == 'test') and sentence is None:
             raise ValueError('Predict mode requires sentence')
 
         # get embeddings for sentence
@@ -124,7 +124,7 @@ class BiLSTMTagger(nn.Module):
 
         if mode == 'train' or mode == 'validate':
             Ryi = L_head[tuple(heads),]
-        elif mode == 'predict':
+        elif mode == 'test' or mode == 'predict':
             scores_data = scores.data.cpu().numpy()
             root = np.argmax(scores_data[0, 1:])  # get the true root node
             mst = ed.edmonds_list(cost_matrix=scores_data[1:, 1:], sentence=sentence[1:], root=root)
@@ -148,6 +148,7 @@ class BiLSTMTagger(nn.Module):
         scores.type(floatTensor)
 
         return scores, label_scores
+
 
 
 def prepare_sequence(sequence, element2index):
@@ -254,7 +255,7 @@ def validate_model(model, loss_function, conllu_sentences, language):
 
 
 def test_model(model, loss_function, conllu_sentences, language):
-    prediction_loss = 0
+    test_loss = 0
     for conllu_sentence in conllu_sentences:
         sentence = conllu_sentence.get_word_list()
         tags = conllu_sentence.get_pos_list()
@@ -272,7 +273,7 @@ def test_model(model, loss_function, conllu_sentences, language):
             sentence_word_indices=sentence_in,
             sentence_pos_indices=post_tags_in,
             sentence=sentence,
-            mode='validate')
+            mode='test')
 
         # Step 4. Compute the loss
         target_arcs = autograd.Variable(torch.from_numpy(np.array(head_representation, dtype=np.long))).type(
@@ -281,18 +282,44 @@ def test_model(model, loss_function, conllu_sentences, language):
         loss_labels = loss_function(label_scores, labels_in)
         loss = loss_arcs + loss_labels
 
-        prediction_loss += loss.data[0]
+        test_loss += loss.data[0]
 
-    prediction_loss /= len(conllu_sentences)
-    print("Prediction loss: {}".format(validate_loss))
-    logging.info("Prediction loss: {}".format(validate_loss))
-    return prediction_loss, arc_scores, label_scores
+    test_loss /= len(conllu_sentences)
+    print("Prediction loss: {}".format(test_loss))
+    logging.info("Prediction loss: {}".format(test_loss))
+    return test_loss, arc_scores, label_scores
+
+
+def predict(model, loss_function, conllu_sentence, language):
+    sentence = conllu_sentence.get_word_list()
+    tags = conllu_sentence.get_pos_list()
+    labels = conllu_sentence.get_label_list()
+    head_representation = conllu_sentence.get_head_representation()
+
+    # Step 2. Get our inputs ready for the network, that is, turn them into
+    # Variables of word indices.
+    sentence_in = prepare_sequence(sentence, em.w2i[language])
+    post_tags_in = prepare_sequence(tags, em.t2i[language])
+    labels_in = prepare_sequence(labels, em.l2i[language])
+
+    # Step 3. Run our forward pass.
+    arc_scores, label_scores = model(
+        sentence_word_indices=sentence_in,
+        sentence_pos_indices=post_tags_in,
+        mode='predict',
+        sentence=sentence
+    )
+
+    predicted_arcs = np.argmax(arc_scores.data.numpy(), axis=1)
+    predicted_labels = np.argmax(label_scores.data.numpy(), axis=1)
+
+    return predicted_arcs, predicted_labels
 
 
 if __name__ == '__main__':
     # parse command-line arguments
     parser = argparse.ArgumentParser(description='Start anew or resume training')
-    parser.add_argument('-m', '--mode', type=str, choices=['start', 'resume', 'test'], required=True,
+    parser.add_argument('-m', '--mode', type=str, choices=['start', 'resume', 'test', 'predict'], required=True,
                         help='start from scratch or resume training: [start, resume]')
     parser.add_argument('-l', '--language', type=str, choices=['en', 'ro'], required=True,
                         help='which language to model: [en, ro]')
@@ -353,14 +380,14 @@ if __name__ == '__main__':
         model.pos_embeddings.weight = nn.Parameter(
             torch.from_numpy(np.array(checkpoint['pos_embeddings'], dtype=np.float))).type(floatTensor)
         losses = checkpoint['losses']
-    elif args.mode == 'test':
+    elif args.mode == 'test' or args.mode == 'predict':
         checkpoint = torch.load(BEST_CHECKPOINT_RELATIVE_PATH)
         model.load_state_dict(checkpoint['model'])
         optimizer.load_state_dict(checkpoint['optimizer'])
         model.word_embeddings.weight = nn.Parameter(
-            torch.from_numpy(np.array(checkpoint['word_embeddings'], dtype=np.float))).type(floatTensor)
+            torch.from_numpy(checkpoint['word_embeddings'])).type(floatTensor)
         model.pos_embeddings.weight = nn.Parameter(
-            torch.from_numpy(np.array(checkpoint['pos_embeddings'], dtype=np.float))).type(floatTensor)
+            torch.from_numpy(checkpoint['pos_embeddings'])).type(floatTensor)
         losses = checkpoint['losses']
 
     loss_function = nn.CrossEntropyLoss()
@@ -393,7 +420,8 @@ if __name__ == '__main__':
 
             # validate
             validate_loss, validate_arc_scores, validate_label_scores = validate_model(model, loss_function,
-                                                                                       conllu_sentences_dev, args.language)
+                                                                                       conllu_sentences_dev,
+                                                                                       args.language)
             # check for best model
             if train_loss < losses['train']['min']['value']:
                 print('Minimum training loss found in epoch {}'.format(epoch + 1))
@@ -439,15 +467,29 @@ if __name__ == '__main__':
         print('Finished training at {}.'.format(time.strftime('%d-%m-%Y, %H:%M:%S')))
         logging.info('Finished training at {}.'.format(time.strftime('%d-%m-%Y, %H:%M:%S')))
     elif args.mode == 'test':
-        test_loss, validate_arc_scores, validate_label_scores = test_model(model, loss_function, conllu_sentences_test, args.language)
+        test_loss, test_arc_scores, test_label_scores = test_model(model, loss_function, conllu_sentences_test,
+                                                                   args.language)
         print(test_loss)
-        # TODO: do some more stuff here probably
+    elif args.mode == 'predict':
+        for conllu_sentence in conllu_sentences_test:
+            predicted_arcs, predicted_labels = predict(model, loss_function, conllu_sentence, args.language)
+            print(predicted_arcs)
+            print(predicted_labels)
+            print('----------------------------------------------')
+            print(conllu_sentence)
+            print('--------------------------------------------')
+            for word in conllu_sentence.words:
+                word.HEAD = str(predicted_arcs[int(word.ID)])
+                word.DEPREL = str(em.i2l[args.language][predicted_labels[int(word.ID)]])
+                word.DEPS = word.HEAD + ':' + word.DEPREL
+            print(conllu_sentence)
+            break
 
-    # DEBUG
-    # print([em.i2l[l] for l in np.argmax(nn.Softmax()(train_label_scores).data.numpy(), axis=1)])
-    # print([em.i2l[l] for l in np.argmax(nn.Softmax()(validate_label_scores).data.numpy(), axis=1)])
-    # print(conllu_sentences_train.get_label_list())
-    # plot_matrix(nn.Softmax()(train_label_scores))
-    # plot_matrix(nn.Softmax()(validate_label_scores))
-    # plot_matrix(nn.Softmax()(train_arc_scores.permute(1, 0)).permute(1, 0))
-    # plot_matrix(nn.Softmax()(validate_arc_scores.permute(1, 0)).permute(1, 0))
+        # DEBUG
+        # print([em.i2l[l] for l in np.argmax(nn.Softmax()(train_label_scores).data.numpy(), axis=1)])
+        # print([em.i2l[l] for l in np.argmax(nn.Softmax()(validate_label_scores).data.numpy(), axis=1)])
+        # print(conllu_sentences_train.get_label_list())
+        # plot_matrix(nn.Softmax()(train_label_scores))
+        # plot_matrix(nn.Softmax()(validate_label_scores))
+        # plot_matrix(nn.Softmax()(train_arc_scores.permute(1, 0)).permute(1, 0))
+        # plot_matrix(nn.Softmax()(validate_arc_scores.permute(1, 0)).permute(1, 0))
