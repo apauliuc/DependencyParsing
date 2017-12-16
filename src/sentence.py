@@ -13,29 +13,32 @@ class Sentence:
     UNKNOWN_TAG = Word.UNKNOWN_TAG
     UNKNOWN_LABEL = Word.UNKNOWN_LABEL
 
-    def __init__(self, newdoc_id, send_id, text, words):
+    def __init__(self, newdoc_id, sent_id, text, words):
         self.new_doc_id = newdoc_id
-        self.send_id = send_id
+        self.sent_id = sent_id
         self.text = text
         self.words = words
 
     def __str__(self):
         string = ''
-        if self.new_doc_id is not None:
+        if self.new_doc_id != '':
             string += "# newdoc id = "
             string += str(self.new_doc_id)
-            string += "\n"
-        string += "# send_id = "
-        string += str(self.send_id)
-        string += "\n"
+        string += "# sent_id = "
+        string += str(self.sent_id)
         string += "# text = "
         string += str(self.text)
-        string += "\n"
+
+        # add newline if not existing. happens sometimes for some reason
+        if not string.endswith("\n"):
+            string += "\n"
+
         sentence_length = len(self.words)
         for index, word in enumerate(self.words):
             string += str(word)
             if index < sentence_length - 1:
                 string += "\n"
+        string += "\n\n"
         return string
 
     @staticmethod

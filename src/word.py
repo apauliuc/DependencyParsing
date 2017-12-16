@@ -24,23 +24,23 @@ class Word:
         string = ''
 
         string += self.ID if self.ID is not None else '_'
-        string += " "
+        string += "\t"
         string += self.FORM  # if self.FORM is not None else '_'   -> Words can not be None. Here, '_' simply means an underscore.
-        string += " "
+        string += "\t"
         string += self.LEMMA  # if self.LEMMA is not None else '_'  -> Words can not be None. Here, '_' simply means an underscore.
-        string += " "
+        string += "\t"
         string += self.UPOSTAG if self.UPOSTAG is not None else '_'
-        string += " "
+        string += "\t"
         string += self.XPOSTAG if self.XPOSTAG is not None else '_'
-        string += " "
+        string += "\t"
         string += self.FEATS if self.FEATS is not None else '_'
-        string += " "
+        string += "\t"
         string += self.HEAD if self.HEAD is not None else '_'
-        string += " "
+        string += "\t"
         string += self.DEPREL if self.DEPREL is not None else '_'
-        string += " "
+        string += "\t"
         string += self.DEPS if self.DEPS is not None else '_'
-        string += " "
+        string += "\t"
         string += self.MISC if self.MISC is not None else '_'
 
         return string

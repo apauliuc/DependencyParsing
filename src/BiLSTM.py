@@ -123,7 +123,7 @@ class BiLSTMTagger(nn.Module):
         L_dependent = self.ReLU(self.mlp_label_dependent(R))
 
         if mode == 'train' or mode == 'validate':
-            Ryi = L_head[tuple(heads),]
+            Ryi = L_head[tuple(heads), ]
         elif mode == 'test' or mode == 'predict':
             scores_data = scores.data.cpu().numpy()
             root = np.argmax(scores_data[0, 1:])  # get the true root node
@@ -136,7 +136,7 @@ class BiLSTMTagger(nn.Module):
                 dep = pair[1]
                 # the first element should always point to zero because mst does not know about the root ROOT stuff
                 heads[dep + 1] = head + 1
-            Ryi = L_head[tuple(heads.tolist()),]
+            Ryi = L_head[tuple(heads.tolist()), ]
         else:
             raise ValueError('Unknown mode: {}.'.format(mode))
 
@@ -173,6 +173,14 @@ def save_checkpoint(checkpoint, best):
     torch.save(checkpoint, LATEST_CHECKPOINT_RELATIVE_PATH)
     if best:
         shutil.copyfile(LATEST_CHECKPOINT_RELATIVE_PATH, BEST_CHECKPOINT_RELATIVE_PATH)
+
+
+def get_true_root(arc_scores):
+
+    for index, column in enumerate(arc_scores.data.cpu().numpy()[:, 1:].T):
+        if np.argmax(column) == 0:
+            return index + 1
+    return np.argmax(nn.Softmax()(arc_scores.permute(1,0)).permute(1, 0).data.numpy()[0, 1:]) + 1
 
 
 def train_model(model, optimizer, loss_function, conllu_sentences, language):
@@ -310,7 +318,15 @@ def predict(model, loss_function, conllu_sentence, language):
         sentence=sentence
     )
 
-    predicted_arcs = np.argmax(arc_scores.data.numpy(), axis=1)
+    root = get_true_root(arc_scores)
+    arc_scores_matrix = arc_scores.data.cpu().numpy()
+    mst = ed.edmonds_list(cost_matrix=arc_scores_matrix[1:, 1:], sentence=sentence[1:], root=root-1)
+    predicted_arcs = np.zeros(len(sentence), dtype=np.int)
+    predicted_arcs[root] = 0
+    for pair in mst:
+        head = pair[0]
+        dep = pair[1]
+        predicted_arcs[dep+1] = head+1
     predicted_labels = np.argmax(label_scores.data.numpy(), axis=1)
 
     return predicted_arcs, predicted_labels
@@ -336,6 +352,10 @@ if __name__ == '__main__':
     LATEST_CHECKPOINT_RELATIVE_PATH = '../resources/checkpoints/{}/latest_checkpoint.tar'.format(args.language)
     global BEST_CHECKPOINT_RELATIVE_PATH
     BEST_CHECKPOINT_RELATIVE_PATH = '../resources/checkpoints/{}/best_checkpoint.tar'.format(args.language)
+    global RESULTS_RELATIVE_PATH
+    RESULTS_RELATIVE_PATH = '../resources/results/{}-ud-predict.conllu'.format(args.language)
+    global FORMATTED_TEST_RELATIVE_PATH
+    FORMATTED_TEST_RELATIVE_PATH = '../resources/results/{}-ud-formatted_test.conllu'.format(args.language)
 
     word_embeddings = autograd.Variable(
         torch.from_numpy(np.array(em.word_embeddings(args.language), dtype=np.float))).type(
@@ -372,7 +392,7 @@ if __name__ == '__main__':
     }
 
     if args.mode == 'resume':
-        checkpoint = torch.load(LATEST_CHECKPOINT_RELATIVE_PATH)
+        checkpoint = torch.load(LATEST_CHECKPOINT_RELATIVE_PATH, map_location=lambda storage, loc: storage)
         model.load_state_dict(checkpoint['model'])
         optimizer.load_state_dict(checkpoint['optimizer'])
         model.word_embeddings.weight = nn.Parameter(
@@ -381,7 +401,7 @@ if __name__ == '__main__':
             torch.from_numpy(np.array(checkpoint['pos_embeddings'], dtype=np.float))).type(floatTensor)
         losses = checkpoint['losses']
     elif args.mode == 'test' or args.mode == 'predict':
-        checkpoint = torch.load(BEST_CHECKPOINT_RELATIVE_PATH)
+        checkpoint = torch.load(BEST_CHECKPOINT_RELATIVE_PATH, map_location=lambda storage, loc: storage)
         model.load_state_dict(checkpoint['model'])
         optimizer.load_state_dict(checkpoint['optimizer'])
         model.word_embeddings.weight = nn.Parameter(
@@ -397,7 +417,7 @@ if __name__ == '__main__':
     if args.language == 'en':
         conllu_sentences_train = em.en_train_sentences()
         conllu_sentences_dev = em.en_dev_sentences()
-        conllu_sentences_test = em.en_test_sentences()
+        conllu_sentences_test = em.en_train_sentences()
     elif args.language == 'ro':
         conllu_sentences_train = em.ro_train_sentences()
         conllu_sentences_dev = em.ro_dev_sentences()
@@ -471,19 +491,21 @@ if __name__ == '__main__':
                                                                    args.language)
         print(test_loss)
     elif args.mode == 'predict':
-        for conllu_sentence in conllu_sentences_test:
-            predicted_arcs, predicted_labels = predict(model, loss_function, conllu_sentence, args.language)
-            print(predicted_arcs)
-            print(predicted_labels)
-            print('----------------------------------------------')
-            print(conllu_sentence)
-            print('--------------------------------------------')
-            for word in conllu_sentence.words:
-                word.HEAD = str(predicted_arcs[int(word.ID)])
-                word.DEPREL = str(em.i2l[args.language][predicted_labels[int(word.ID)]])
-                word.DEPS = word.HEAD + ':' + word.DEPREL
-            print(conllu_sentence)
-            break
+            prediction_file = open(RESULTS_RELATIVE_PATH, mode='a', encoding='UTF-8')
+            formatted_test_file = open(FORMATTED_TEST_RELATIVE_PATH, mode='a', encoding='UTF-8')
+            for conllu_sentence in conllu_sentences_test[19:20]:
+                # save formatted version fo test file
+                formatted_test_file.write(str(conllu_sentence))
+                # predict arc scores and labels
+                predicted_arcs, predicted_labels = predict(model, loss_function, conllu_sentence, args.language)
+                # generate predicted sentence
+                for word in conllu_sentence.words:
+                    word.HEAD = str(predicted_arcs[int(word.ID)])
+                    word.DEPREL = str(em.i2l[args.language][predicted_labels[int(word.ID)]])
+                    word.DEPS = word.HEAD + ':' + word.DEPREL
+
+                prediction_file.write(str(conllu_sentence))
+
 
         # DEBUG
         # print([em.i2l[l] for l in np.argmax(nn.Softmax()(train_label_scores).data.numpy(), axis=1)])
