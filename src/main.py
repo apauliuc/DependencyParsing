@@ -111,10 +111,10 @@ def load_data(a):
     if a.language == 'en':
         loaded_conllu_sentences['en'] = {}
         if a.mode in ['start', 'resume']:
-            loaded_conllu_sentences['en']['train'] = em.en_train_sentences()
-            loaded_conllu_sentences['en']['dev'] = em.en_dev_sentences()
+            loaded_conllu_sentences['en']['train'] = em.en_train_sentences()[19:20]
+            loaded_conllu_sentences['en']['dev'] = em.en_dev_sentences()[19:20]
         elif a.mode in ['test', 'predict']:
-            loaded_conllu_sentences['en']['test'] = em.en_test_sentences()
+            loaded_conllu_sentences['en']['test'] = em.en_test_sentences()[19:20]
     elif a.language == 'ro':
         if a.mode in ['start', 'resume']:
             loaded_conllu_sentences['ro']['train'] = em.ro_train_sentences()
@@ -193,7 +193,7 @@ if __name__ == '__main__':
             losses['validate']['history'].append(validate_loss)
 
             # always save latest checkpoint after an epoch, and flag if best checkpoint
-            if epoch + 1 % 10 == 0:
+            if (epoch + 1) % 10 == 0:
                 model.cpu()
                 save_checkpoint({
                     'epoch': epoch + 1,
