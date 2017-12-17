@@ -193,14 +193,18 @@ if __name__ == '__main__':
             losses['validate']['history'].append(validate_loss)
 
             # always save latest checkpoint after an epoch, and flag if best checkpoint
-            save_checkpoint({
-                'epoch': epoch + 1,
-                'model': model.state_dict(),
-                'losses': losses,
-                'word_embeddings': model.word_embeddings.weight.data.numpy(),
-                'pos_embeddings': model.pos_embeddings.weight.data.numpy(),
-                'optimizer': optimizer.state_dict(),
-            }, LATEST_CHECKPOINT_RELATIVE_PATH, BEST_CHECKPOINT_RELATIVE_PATH, is_best_model)
+            if epoch + 1 % 10 == 0:
+                model.cpu()
+                save_checkpoint({
+                    'epoch': epoch + 1,
+                    'model': model.state_dict(),
+                    'losses': losses,
+                    'word_embeddings': model.word_embeddings.weight.data.numpy(),
+                    'pos_embeddings': model.cpu().pos_embeddings.weight.data.numpy(),
+                    'optimizer': optimizer.state_dict(),
+                }, LATEST_CHECKPOINT_RELATIVE_PATH, BEST_CHECKPOINT_RELATIVE_PATH, is_best_model)
+                if CUDA:
+                    model.cuda()
 
             if validate_loss > losses['validate']['min']['value'] and epoch - losses['validate']['min']['epoch'] > 10:
                 print('Ten epochs with no improvement have passed. Stopping training...')
