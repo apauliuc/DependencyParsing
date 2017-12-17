@@ -1,0 +1,229 @@
+INFO:root:Started training at 16-12-2017, 23:39:35.
+INFO:root:Epoch [1/50]...
+INFO:root:Training loss: 5.896910190582275
+INFO:root:Validation loss: 5.844111442565918
+INFO:root:Minimum training loss found in epoch 1
+INFO:root:Minimum validation loss found in epoch 1
+INFO:root:Epoch [2/50]...
+INFO:root:Training loss: 5.844111442565918
+INFO:root:Validation loss: 5.771230697631836
+INFO:root:Minimum training loss found in epoch 2
+INFO:root:Minimum validation loss found in epoch 2
+INFO:root:Epoch [3/50]...
+INFO:root:Training loss: 5.771230697631836
+INFO:root:Validation loss: 5.620771408081055
+INFO:root:Minimum training loss found in epoch 3
+INFO:root:Minimum validation loss found in epoch 3
+INFO:root:Epoch [4/50]...
+INFO:root:Training loss: 5.620771408081055
+INFO:root:Validation loss: 5.2815961837768555
+INFO:root:Minimum training loss found in epoch 4
+INFO:root:Minimum validation loss found in epoch 4
+INFO:root:Epoch [5/50]...
+INFO:root:Training loss: 5.2815961837768555
+INFO:root:Validation loss: 4.663771629333496
+INFO:root:Minimum training loss found in epoch 5
+INFO:root:Minimum validation loss found in epoch 5
+INFO:root:Epoch [6/50]...
+INFO:root:Training loss: 4.663771629333496
+INFO:root:Validation loss: 4.107317924499512
+INFO:root:Minimum training loss found in epoch 6
+INFO:root:Minimum validation loss found in epoch 6
+INFO:root:Epoch [7/50]...
+INFO:root:Training loss: 4.107317924499512
+INFO:root:Validation loss: 3.6591548919677734
+INFO:root:Minimum training loss found in epoch 7
+INFO:root:Minimum validation loss found in epoch 7
+INFO:root:Epoch [8/50]...
+INFO:root:Training loss: 3.6591548919677734
+INFO:root:Validation loss: 3.5865514278411865
+INFO:root:Minimum training loss found in epoch 8
+INFO:root:Minimum validation loss found in epoch 8
+INFO:root:Epoch [9/50]...
+INFO:root:Training loss: 3.5865514278411865
+INFO:root:Validation loss: 3.306948184967041
+INFO:root:Minimum training loss found in epoch 9
+INFO:root:Minimum validation loss found in epoch 9
+INFO:root:Epoch [10/50]...
+INFO:root:Training loss: 3.306948184967041
+INFO:root:Validation loss: 3.189910411834717
+INFO:root:Minimum training loss found in epoch 10
+INFO:root:Minimum validation loss found in epoch 10
+INFO:root:Epoch [11/50]...
+INFO:root:Training loss: 3.189910411834717
+INFO:root:Validation loss: 2.9554028511047363
+INFO:root:Minimum training loss found in epoch 11
+INFO:root:Minimum validation loss found in epoch 11
+INFO:root:Epoch [12/50]...
+INFO:root:Training loss: 2.9554028511047363
+INFO:root:Validation loss: 2.9578490257263184
+INFO:root:Minimum training loss found in epoch 12
+INFO:root:Epoch [13/50]...
+INFO:root:Training loss: 2.9578490257263184
+INFO:root:Validation loss: 2.6106605529785156
+INFO:root:Minimum validation loss found in epoch 13
+INFO:root:Epoch [14/50]...
+INFO:root:Training loss: 2.6106605529785156
+INFO:root:Validation loss: 2.482527494430542
+INFO:root:Minimum training loss found in epoch 14
+INFO:root:Minimum validation loss found in epoch 14
+INFO:root:Epoch [15/50]...
+INFO:root:Training loss: 2.482527494430542
+INFO:root:Validation loss: 2.452413558959961
+INFO:root:Minimum training loss found in epoch 15
+INFO:root:Minimum validation loss found in epoch 15
+INFO:root:Epoch [16/50]...
+INFO:root:Training loss: 2.452413558959961
+INFO:root:Validation loss: 2.2811031341552734
+INFO:root:Minimum training loss found in epoch 16
+INFO:root:Minimum validation loss found in epoch 16
+INFO:root:Epoch [17/50]...
+INFO:root:Training loss: 2.2811031341552734
+INFO:root:Validation loss: 2.0088248252868652
+INFO:root:Minimum training loss found in epoch 17
+INFO:root:Minimum validation loss found in epoch 17
+INFO:root:Epoch [18/50]...
+INFO:root:Training loss: 2.0088248252868652
+INFO:root:Validation loss: 1.9401659965515137
+INFO:root:Minimum training loss found in epoch 18
+INFO:root:Minimum validation loss found in epoch 18
+INFO:root:Epoch [19/50]...
+INFO:root:Training loss: 1.9401659965515137
+INFO:root:Validation loss: 1.792604684829712
+INFO:root:Minimum training loss found in epoch 19
+INFO:root:Minimum validation loss found in epoch 19
+INFO:root:Epoch [20/50]...
+INFO:root:Training loss: 1.792604684829712
+INFO:root:Validation loss: 1.5277893543243408
+INFO:root:Minimum training loss found in epoch 20
+INFO:root:Minimum validation loss found in epoch 20
+INFO:root:Epoch [21/50]...
+INFO:root:Training loss: 1.5277893543243408
+INFO:root:Validation loss: 1.3201969861984253
+INFO:root:Minimum training loss found in epoch 21
+INFO:root:Minimum validation loss found in epoch 21
+INFO:root:Epoch [22/50]...
+INFO:root:Training loss: 1.3201969861984253
+INFO:root:Validation loss: 1.1154334545135498
+INFO:root:Minimum training loss found in epoch 22
+INFO:root:Minimum validation loss found in epoch 22
+INFO:root:Epoch [23/50]...
+INFO:root:Training loss: 1.1154334545135498
+INFO:root:Validation loss: 0.9835222959518433
+INFO:root:Minimum training loss found in epoch 23
+INFO:root:Minimum validation loss found in epoch 23
+INFO:root:Epoch [24/50]...
+INFO:root:Training loss: 0.9835222959518433
+INFO:root:Validation loss: 0.726304292678833
+INFO:root:Minimum training loss found in epoch 24
+INFO:root:Minimum validation loss found in epoch 24
+INFO:root:Epoch [25/50]...
+INFO:root:Training loss: 0.726304292678833
+INFO:root:Validation loss: 0.6967613697052002
+INFO:root:Minimum training loss found in epoch 25
+INFO:root:Minimum validation loss found in epoch 25
+INFO:root:Epoch [26/50]...
+INFO:root:Training loss: 0.6967613697052002
+INFO:root:Validation loss: 0.48497647047042847
+INFO:root:Minimum training loss found in epoch 26
+INFO:root:Minimum validation loss found in epoch 26
+INFO:root:Epoch [27/50]...
+INFO:root:Training loss: 0.48497647047042847
+INFO:root:Validation loss: 0.3592474162578583
+INFO:root:Minimum training loss found in epoch 27
+INFO:root:Minimum validation loss found in epoch 27
+INFO:root:Epoch [28/50]...
+INFO:root:Training loss: 0.3592474162578583
+INFO:root:Validation loss: 0.289456844329834
+INFO:root:Minimum training loss found in epoch 28
+INFO:root:Minimum validation loss found in epoch 28
+INFO:root:Epoch [29/50]...
+INFO:root:Training loss: 0.289456844329834
+INFO:root:Validation loss: 0.19599193334579468
+INFO:root:Minimum training loss found in epoch 29
+INFO:root:Minimum validation loss found in epoch 29
+INFO:root:Epoch [30/50]...
+INFO:root:Training loss: 0.19599193334579468
+INFO:root:Validation loss: 0.18301716446876526
+INFO:root:Minimum training loss found in epoch 30
+INFO:root:Minimum validation loss found in epoch 30
+INFO:root:Epoch [31/50]...
+INFO:root:Training loss: 0.18301716446876526
+INFO:root:Validation loss: 0.10834643989801407
+INFO:root:Minimum training loss found in epoch 31
+INFO:root:Minimum validation loss found in epoch 31
+INFO:root:Epoch [32/50]...
+INFO:root:Training loss: 0.10834643989801407
+INFO:root:Validation loss: 0.1029115691781044
+INFO:root:Minimum training loss found in epoch 32
+INFO:root:Minimum validation loss found in epoch 32
+INFO:root:Epoch [33/50]...
+INFO:root:Training loss: 0.1029115691781044
+INFO:root:Validation loss: 0.05183911696076393
+INFO:root:Minimum training loss found in epoch 33
+INFO:root:Minimum validation loss found in epoch 33
+INFO:root:Epoch [34/50]...
+INFO:root:Training loss: 0.05183911696076393
+INFO:root:Validation loss: 0.059835467487573624
+INFO:root:Minimum training loss found in epoch 34
+INFO:root:Epoch [35/50]...
+INFO:root:Training loss: 0.059835467487573624
+INFO:root:Validation loss: 0.02785586751997471
+INFO:root:Minimum validation loss found in epoch 35
+INFO:root:Epoch [36/50]...
+INFO:root:Training loss: 0.02785586751997471
+INFO:root:Validation loss: 0.024012569338083267
+INFO:root:Minimum training loss found in epoch 36
+INFO:root:Minimum validation loss found in epoch 36
+INFO:root:Epoch [37/50]...
+INFO:root:Training loss: 0.024012569338083267
+INFO:root:Validation loss: 0.02467658929526806
+INFO:root:Minimum training loss found in epoch 37
+INFO:root:Epoch [38/50]...
+INFO:root:Training loss: 0.02467658929526806
+INFO:root:Validation loss: 0.014039692468941212
+INFO:root:Minimum validation loss found in epoch 38
+INFO:root:Epoch [39/50]...
+INFO:root:Training loss: 0.014039692468941212
+INFO:root:Validation loss: 0.010425216518342495
+INFO:root:Minimum training loss found in epoch 39
+INFO:root:Minimum validation loss found in epoch 39
+INFO:root:Epoch [40/50]...
+INFO:root:Training loss: 0.010425216518342495
+INFO:root:Validation loss: 0.03209806978702545
+INFO:root:Minimum training loss found in epoch 40
+INFO:root:Epoch [41/50]...
+INFO:root:Training loss: 0.03209806978702545
+INFO:root:Validation loss: 0.003892171662300825
+INFO:root:Minimum validation loss found in epoch 41
+INFO:root:Epoch [42/50]...
+INFO:root:Training loss: 0.003892171662300825
+INFO:root:Validation loss: 0.49678152799606323
+INFO:root:Minimum training loss found in epoch 42
+INFO:root:Epoch [43/50]...
+INFO:root:Training loss: 0.49678152799606323
+INFO:root:Validation loss: 0.41929924488067627
+INFO:root:Epoch [44/50]...
+INFO:root:Training loss: 0.41929924488067627
+INFO:root:Validation loss: 0.026720695197582245
+INFO:root:Epoch [45/50]...
+INFO:root:Training loss: 0.026720695197582245
+INFO:root:Validation loss: 0.02436024136841297
+INFO:root:Epoch [46/50]...
+INFO:root:Training loss: 0.02436024136841297
+INFO:root:Validation loss: 0.3657747507095337
+INFO:root:Epoch [47/50]...
+INFO:root:Training loss: 0.3657747507095337
+INFO:root:Validation loss: 0.0020146118476986885
+INFO:root:Minimum validation loss found in epoch 47
+INFO:root:Epoch [48/50]...
+INFO:root:Training loss: 0.0020146118476986885
+INFO:root:Validation loss: 2.404087781906128
+INFO:root:Minimum training loss found in epoch 48
+INFO:root:Epoch [49/50]...
+INFO:root:Training loss: 2.404087781906128
+INFO:root:Validation loss: 0.3391872048377991
+INFO:root:Epoch [50/50]...
+INFO:root:Training loss: 0.3391872048377991
+INFO:root:Validation loss: 0.5664443969726562
+INFO:root:Finished training at 16-12-2017, 23:39:51.
