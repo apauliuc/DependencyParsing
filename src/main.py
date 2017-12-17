@@ -210,6 +210,14 @@ if __name__ == '__main__':
                 print('Ten epochs with no improvement have passed. Stopping training...')
                 logging.info('Ten epochs with no improvement have passed. Stopping training...')
 
+                save_checkpoint({
+                    'epoch': epoch + 1,
+                    'model': model.state_dict(),
+                    'losses': losses,
+                    'word_embeddings': model.word_embeddings.weight.data.numpy(),
+                    'pos_embeddings': model.cpu().pos_embeddings.weight.data.numpy(),
+                    'optimizer': optimizer.state_dict(),
+                }, LATEST_CHECKPOINT_RELATIVE_PATH, BEST_CHECKPOINT_RELATIVE_PATH, is_best_model)
                 break
 
         print('Finished training at {}.'.format(time.strftime('%d-%m-%Y, %H:%M:%S')))
