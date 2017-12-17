@@ -194,6 +194,8 @@ if __name__ == '__main__':
 
             # always save latest checkpoint after an epoch, and flag if best checkpoint
             if (epoch + 1) % 5 == 0 or is_best_model:
+                print('Saving checkpoint at epoch {}...'.format(epoch+1))
+                logging.info('Saving checkpoint at epoch {}...'.format(epoch+1))
                 model.cpu()
                 save_checkpoint({
                     'epoch': epoch + 1,
