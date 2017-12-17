@@ -60,10 +60,10 @@ class BiLSTMTagger(nn.Module):
 
         self.Dropout = nn.Dropout(p=0.33)
 
-        # One linear layer Wx + b, input dim 100 output dim 100
+        # One linear layer Wx + b, input dim 800 output dim 100
         self.mlp_arc_head = nn.Linear(self.hidden_dim, mlp_arc_dimension)
 
-        # One linear layer Wx + b, input dim 100 output dim 100
+        # One linear layer Wx + b, input dim 800 output dim 100
         self.mlp_arc_dependent = nn.Linear(self.hidden_dim, mlp_arc_dimension)
 
         # activation function  h(Wx + b)
