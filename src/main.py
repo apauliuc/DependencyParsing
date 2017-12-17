@@ -193,7 +193,7 @@ if __name__ == '__main__':
             losses['validate']['history'].append(validate_loss)
 
             # always save latest checkpoint after an epoch, and flag if best checkpoint
-            if (epoch + 1) % 10 == 0:
+            if (epoch + 1) % 10 == 0 or is_best_model:
                 model.cpu()
                 save_checkpoint({
                     'epoch': epoch + 1,
