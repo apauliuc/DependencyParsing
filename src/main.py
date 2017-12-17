@@ -111,10 +111,10 @@ def load_data(a):
     if a.language == 'en':
         loaded_conllu_sentences['en'] = {}
         if a.mode in ['start', 'resume']:
-            loaded_conllu_sentences['en']['train'] = em.en_train_sentences()[19:20]
-            loaded_conllu_sentences['en']['dev'] = em.en_dev_sentences()[19:20]
+            loaded_conllu_sentences['en']['train'] = em.en_train_sentences()
+            loaded_conllu_sentences['en']['dev'] = em.en_dev_sentences()
         elif a.mode in ['test', 'predict']:
-            loaded_conllu_sentences['en']['test'] = em.en_test_sentences()[19:20]
+            loaded_conllu_sentences['en']['test'] = em.en_test_sentences()
     elif a.language == 'ro':
         if a.mode in ['start', 'resume']:
             loaded_conllu_sentences['ro']['train'] = em.ro_train_sentences()
@@ -210,6 +210,7 @@ if __name__ == '__main__':
                 print('Ten epochs with no improvement have passed. Stopping training...')
                 logging.info('Ten epochs with no improvement have passed. Stopping training...')
 
+                model.cpu()
                 save_checkpoint({
                     'epoch': epoch + 1,
                     'model': model.state_dict(),
