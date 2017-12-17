@@ -114,7 +114,7 @@ def load_data(a):
             loaded_conllu_sentences['en']['train'] = em.en_train_sentences()
             loaded_conllu_sentences['en']['dev'] = em.en_dev_sentences()
         elif a.mode in ['test', 'predict']:
-            loaded_conllu_sentences['en']['test'] = em.en_test_sentences()
+            loaded_conllu_sentences['en']['test'] = em.en_dev_sentences()
     elif a.language == 'ro':
         loaded_conllu_sentences['ro'] = {}
         if a.mode in ['start', 'resume']:
@@ -224,8 +224,8 @@ if __name__ == '__main__':
                 }, LATEST_CHECKPOINT_RELATIVE_PATH, BEST_CHECKPOINT_RELATIVE_PATH, is_best_model)
                 break
 
-        print('Finished training at {}.'.format(time.strftime('%d-%m-%Y, %H:%M:%S')))
-        logging.info('Finished training at {}.'.format(time.strftime('%d-%m-%Y, %H:%M:%S')))
+        print('Finished testing at {}.'.format(time.strftime('%d-%m-%Y, %H:%M:%S')))
+        logging.info('Finished testing at {}.'.format(time.strftime('%d-%m-%Y, %H:%M:%S')))
     elif args.mode == 'test':
         test_loss, test_arc_scores, test_label_scores = test_model(model, loss_function,
                                                                    conllu_sentences[args.language]['test'],
