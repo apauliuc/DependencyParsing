@@ -1,0 +1,6 @@
+INFO:root:Started training at 17-12-2017, 00:59:17.
+INFO:root:Epoch [1/50]...
+INFO:root:Training loss: 6.070959300994873
+INFO:root:Validation loss: 5.269731097751194
+INFO:root:Minimum training loss found in epoch 1
+INFO:root:Minimum validation loss found in epoch 1
