@@ -291,8 +291,6 @@ def tag_embeddings(language):
 
 
 if __name__ == '__main__':
-
-    print("aici")
     '''
     
     # models that have a default behaviour and return a representation for unknown words.
