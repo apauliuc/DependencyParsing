@@ -9,7 +9,7 @@ import edmonds as ed
 logging.basicConfig(filename='../resources/logs/training_{}.log'.format(time.strftime('%d-%m-%Y%_H:%M:%S')),
                     level=logging.DEBUG)
 
-NUM_EPOCHS = 50
+NUM_EPOCHS = 10
 NUM_LAYERS = 3
 HIDDEN_DIMENSION = 400
 INPUT_SIZE = 100
