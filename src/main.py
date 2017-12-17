@@ -111,10 +111,10 @@ def load_data(a):
     if a.language == 'en':
         loaded_conllu_sentences['en'] = {}
         if a.mode in ['start', 'resume']:
-            loaded_conllu_sentences['en']['train'] = em.en_train_sentences()[0:50]
-            loaded_conllu_sentences['en']['dev'] = em.en_dev_sentences()[0:9]
+            loaded_conllu_sentences['en']['train'] = em.en_train_sentences()
+            loaded_conllu_sentences['en']['dev'] = em.en_dev_sentences()
         elif a.mode in ['test', 'predict']:
-            loaded_conllu_sentences['en']['test'] = em.en_train_sentences()[0:2]
+            loaded_conllu_sentences['en']['test'] = em.en_test_sentences()
     elif a.language == 'ro':
         if a.mode in ['start', 'resume']:
             loaded_conllu_sentences['ro']['train'] = em.ro_train_sentences()
