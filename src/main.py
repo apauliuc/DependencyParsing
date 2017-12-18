@@ -114,14 +114,14 @@ def load_data(a):
             loaded_conllu_sentences['en']['train'] = em.en_train_sentences()
             loaded_conllu_sentences['en']['dev'] = em.en_dev_sentences()
         elif a.mode in ['test', 'predict']:
-            loaded_conllu_sentences['en']['test'] = em.en_dev_sentences()
+            loaded_conllu_sentences['en']['test'] = em.en_test_sentences()
     elif a.language == 'ro':
         loaded_conllu_sentences['ro'] = {}
         if a.mode in ['start', 'resume']:
             loaded_conllu_sentences['ro']['train'] = em.ro_train_sentences()
             loaded_conllu_sentences['ro']['dev'] = em.ro_dev_sentences()
         elif a.mode in ['test', 'predict']:
-            loaded_conllu_sentences['ro']['test'] = em.ro_test_sentences()
+            loaded_conllu_sentences['ro']['test'] = em.ro_train_sentences()
     else:
         raise ValueError('Specified language {} is not supported.'.format(a.language))
 

@@ -90,9 +90,9 @@ def plot_losses(language):
     plt.xlabel('iterations over entire dataset')
     plt.ylabel('loss')
     plt.legend()
-    plt.savefig('../resources/figures/en_losses.png')
+    plt.savefig('../resources/figures/{}_losses.png'.format(language))
 
 
 if __name__ == '__main__':
     # get_data_metrics()
-    plot_losses('en')
+    plot_losses('ro')
